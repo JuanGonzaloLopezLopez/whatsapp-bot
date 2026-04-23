@@ -26,6 +26,7 @@ const sesiones = new Map();
 
 const ai = geminiApiKey ? new GoogleGenAI({ apiKey: geminiApiKey }) : null;
 
+// URL directa de la imagen
 const URL_IMAGEN_FICHAS =
   "https://drive.google.com/uc?export=view&id=1HEHavShxvnpORxW5AbazRHzDMuTQbHUY";
 
@@ -116,30 +117,84 @@ async function procesarMensajeEntrante(mensaje) {
   const textoNormalizado = normalizarTexto(textoRecibido);
   const sesionActual = obtenerSesion(numeroCliente);
 
-  const respuestaFija = construirRespuestaFija(textoNormalizado, sesionActual);
+  // Activar modo específico
+  if (textoNormalizado === "especifico") {
+    sesiones.set(numeroCliente, {
+      ...sesionActual,
+      modoEspecifico: true,
+      actualizadaEn: Date.now(),
+    });
+
+    await enviarTexto(
+      numeroCliente,
+      "✅ *Modo Especifico activado*\n\nAhora puedes hacer preguntas más detalladas, por ejemplo:\n• costos de trámites\n• titulación maestría\n• constancias\n• certificaciones\n• dudas específicas del proceso\n\nPara volver al menú principal escribe *menu*."
+    );
+    return;
+  }
+
+  // Regresar al menú y apagar modo específico
+  if (
+    textoNormalizado === "menu" ||
+    textoNormalizado === "menú" ||
+    textoNormalizado === "hola" ||
+    textoNormalizado === "inicio"
+  ) {
+    sesiones.set(numeroCliente, {
+      ...sesionActual,
+      modoEspecifico: false,
+      estado: "menu_principal",
+      actualizadaEn: Date.now(),
+    });
+
+    await enviarBotones(
+      numeroCliente,
+      "Hola, soy el asistente virtual del Instituto Tecnológico Superior de Misantla.\nSelecciona una opción:",
+      [
+        { id: "carreras", titulo: "Carreras" },
+        { id: "examen", titulo: "Examen" },
+        { id: "direccion_it", titulo: "Dirección" },
+      ]
+    );
+
+    // Mandamos el cuarto botón como texto guía porque WhatsApp solo permite 3 botones interactivos
+    await enviarTexto(
+      numeroCliente,
+      "También puedes escribir:\n*Telefonos de contacto*\n\nY si deseas recibir información más específica escribe *Especifico*."
+    );
+    return;
+  }
+
+  const sesionActualizada = obtenerSesion(numeroCliente);
+
+  // Si el usuario activó "Especifico", usar Gemini
+  if (sesionActualizada.modoEspecifico) {
+    console.log("Entrando a Gemini con:", textoRecibido);
+    const respuestaIA = await generarRespuestaIA(textoRecibido);
+    await enviarTexto(numeroCliente, respuestaIA);
+    return;
+  }
+
+  const respuestaFija = construirRespuestaFija(textoNormalizado);
 
   if (respuestaFija) {
-    if (respuestaFija.nuevoEstado) {
-      sesiones.set(numeroCliente, {
-        ...sesionActual,
-        estado: respuestaFija.nuevoEstado,
-        actualizadaEn: Date.now(),
-      });
-    }
-
     if (respuestaFija.tipo === "texto") {
       await enviarTexto(numeroCliente, respuestaFija.mensaje);
     } else if (respuestaFija.tipo === "botones") {
       await enviarBotones(numeroCliente, respuestaFija.mensaje, respuestaFija.botones);
     } else if (respuestaFija.tipo === "imagen") {
       await enviarImagen(numeroCliente, respuestaFija.imageUrl, respuestaFija.mensaje);
+    } else if (respuestaFija.tipo === "texto_e_imagen") {
+      await enviarTexto(numeroCliente, respuestaFija.mensaje);
+      await enviarImagen(numeroCliente, respuestaFija.imageUrl, respuestaFija.caption || "");
     }
-
     return;
   }
 
-  const respuestaIA = await generarRespuestaIA(textoRecibido);
-  await enviarTexto(numeroCliente, respuestaIA);
+  // Si no coincide en modo normal, sugerir específico
+  await enviarTexto(
+    numeroCliente,
+    'No encontré una respuesta fija para esa duda.\n\nSi deseas recibir información más específica escribe *"Especifico"*.'
+  );
 }
 
 function obtenerSesion(numeroCliente) {
@@ -148,6 +203,7 @@ function obtenerSesion(numeroCliente) {
   if (!sesion) {
     return {
       estado: "inicio",
+      modoEspecifico: false,
       actualizadaEn: Date.now(),
     };
   }
@@ -168,27 +224,29 @@ function contieneAlgunaFrase(texto, frases) {
   return frases.some((frase) => texto.includes(frase));
 }
 
-function construirRespuestaFija(texto, sesion) {
-  if (texto === "hola" || texto === "menu" || texto === "menú" || sesion.estado === "inicio") {
+function construirRespuestaFija(texto) {
+  // 1. Carreras
+  if (
+    contieneAlgunaFrase(texto, [
+      "carreras",
+      "carrera",
+      "que carreras hay",
+      "qué carreras hay",
+      "carreras disponibles",
+      "carreras del itsm",
+      "carreras del tecnologico",
+      "carreras del tecnológico",
+      "posgrados",
+      "maestrias",
+      "maestrías",
+      "doctorado"
+    ])
+  ) {
     return {
-      tipo: "botones",
+      tipo: "texto_e_imagen",
       mensaje:
-        "Hola, soy el asistente virtual del Instituto Tecnológico Superior de Misantla. Elige una opción o escribe tu duda.",
-      nuevoEstado: "menu_principal",
-      botones: [
-        { id: "carreras", titulo: "Carreras" },
-        { id: "examen", titulo: "Examen" },
-        { id: "requisitos", titulo: "Requisitos" },
-      ],
-    };
-  }
-
-  if (contieneAlgunaFrase(texto, ["carreras", "que carreras hay", "qué carreras hay", "carreras disponibles", "cuantas carreras hay", "cuántas carreras hay"])) {
-    return {
-      tipo: "texto",
-      mensaje:
-        "Actualmente hay 10 carreras disponibles.\n\n" +
-        "Modalidad escolarizada:\n" +
+        "📘 *Oferta educativa del ITS Misantla*\n\n" +
+        "*Carreras de licenciatura:*\n" +
         "• Ingeniería Industrial\n" +
         "• Ingeniería en Sistemas Computacionales\n" +
         "• Ingeniería Electromecánica\n" +
@@ -199,86 +257,110 @@ function construirRespuestaFija(texto, sesion) {
         "• Ingeniería en Gestión Empresarial\n" +
         "• Ingeniería Petrolera\n" +
         "• Licenciatura en Gastronomía\n\n" +
-        "Modalidad no escolarizada/virtual:\n" +
-        "• Ingeniería Industrial\n" +
-        "• Ingeniería en Sistemas Computacionales\n" +
-        "• Ingeniería en Gestión Empresarial\n\n" +
-        "Además, se anuncian 3 maestrías y 1 doctorado."
+        "*Posgrados:*\n" +
+        "• Maestría en Ingeniería Industrial\n" +
+        "• Maestría en Sistemas Computacionales\n" +
+        "• Maestría en Ciencias de la Ingeniería\n" +
+        "• Doctorado en Ciencias de la Ingeniería\n\n" +
+        'Si deseas recibir información más específica escribe *"Especifico"*.',
+      imageUrl: URL_IMAGEN_FICHAS,
+      caption: "Imagen informativa de fichas de admisión 2026"
     };
   }
 
-  if (contieneAlgunaFrase(texto, ["modalidades", "modalidad", "escolarizada", "virtual", "no escolarizada"])) {
+  // 2. Examen
+  if (
+    contieneAlgunaFrase(texto, [
+      "examen",
+      "fecha del examen",
+      "cuando es el examen",
+      "cuándo es el examen",
+      "evaluacion diagnostica",
+      "evaluación diagnóstica",
+      "admision",
+      "admisión",
+      "requisitos",
+      "documentos",
+      "inscripcion",
+      "inscripción",
+      "ficha",
+      "fichas"
+    ])
+  ) {
     return {
       tipo: "texto",
       mensaje:
-        "Hay dos modalidades de ingreso:\n" +
-        "• Escolarizada\n" +
-        "• No escolarizada / virtual\n\n" +
-        "La modalidad no escolarizada/virtual ofrece:\n" +
-        "• Ingeniería Industrial\n" +
-        "• Ingeniería en Sistemas Computacionales\n" +
-        "• Ingeniería en Gestión Empresarial"
-    };
-  }
-
-  if (contieneAlgunaFrase(texto, ["examen", "cuando es el examen", "cuándo es el examen", "fecha del examen", "admision", "admisión"])) {
-    return {
-      tipo: "texto",
-      mensaje:
-        "El examen de admisión está programado para el 3 de julio de 2026 y se realizará en línea."
-    };
-  }
-
-  if (contieneAlgunaFrase(texto, ["resultados", "cuando salen resultados", "cuándo salen resultados"])) {
-    return {
-      tipo: "texto",
-      mensaje:
-        "La publicación de resultados será el 8 de julio de 2026 en la página oficial:\nhttps://misantla.tecnm.mx/"
-    };
-  }
-
-  if (contieneAlgunaFrase(texto, ["ficha", "fichas", "costo de ficha", "inscripcion", "inscripción", "reinscripcion", "reinscripción"])) {
-    return {
-      tipo: "texto",
-      mensaje:
-        "La ficha, el proceso de admisión, la inscripción y la reinscripción son gratuitos."
-    };
-  }
-
-  if (contieneAlgunaFrase(texto, ["requisitos", "documentos", "que piden", "qué piden", "papeles"])) {
-    return {
-      tipo: "texto",
-      mensaje:
-        "Requisitos principales:\n" +
+        "📝 *Proceso de admisión y examen*\n\n" +
+        "*El proceso de admisión es gratuito.*\n" +
+        "La ficha, inscripción y reinscripción son gratuitas.\n\n" +
+        "*Fecha de evaluación diagnóstica / examen de admisión:*\n" +
+        "• 3 de julio de 2026\n" +
+        "• Se realiza en línea\n\n" +
+        "*Publicación de resultados:*\n" +
+        "• 8 de julio de 2026\n\n" +
+        "*Documentos y requisitos principales:*\n" +
         "• CURP\n" +
-        "• Certificado de estudios de bachillerato o constancia de conclusión\n" +
+        "• Certificado de bachillerato o constancia de conclusión\n" +
         "• Acta de nacimiento\n" +
         "• Carta de buena conducta\n" +
         "• Examen de tipo sanguíneo\n" +
         "• Constancia de vigencia de derechos del IMSS\n\n" +
-        "En la imagen informativa también se menciona certificado o constancia de bachillerato con calificaciones."
+        'Si deseas recibir información más específica escribe *"Especifico"*.'
     };
   }
 
-  if (contieneAlgunaFrase(texto, ["horario", "horarios", "atencion", "atención"])) {
+  // 3. Dirección del tecnológico
+  if (
+    contieneAlgunaFrase(texto, [
+      "direccion del tecnologico",
+      "dirección del tecnológico",
+      "direccion del instituto",
+      "dirección del instituto",
+      "ubicacion",
+      "ubicación",
+      "donde estan",
+      "donde se ubican",
+      "mapa",
+      "domicilio"
+    ])
+  ) {
     return {
       tipo: "texto",
       mensaje:
-        "Horarios de atención:\n" +
+        "📍 *Dirección del Instituto Tecnológico Superior de Misantla*\n\n" +
+        "Km. 1.8 Carretera a Loma del Cojolite\n" +
+        "C.P. 93821, Misantla, Veracruz, México\n\n" +
+        "*Horarios de atención:*\n" +
         "• Lunes a viernes: 8:00 a.m. a 2:00 p.m. y 3:00 p.m. a 5:00 p.m.\n" +
-        "• Sábados: 9:00 a.m. a 3:00 p.m."
+        "• Sábados: 9:00 a.m. a 3:00 p.m.\n\n" +
+        "*Google Maps:*\n" +
+        "https://maps.app.goo.gl/UYednfvUfUB2Ec1C9\n\n" +
+        'Si deseas recibir información más específica escribe *"Especifico"*.'
     };
   }
 
-  if (contieneAlgunaFrase(texto, ["telefono", "teléfono", "telefonos", "teléfonos", "contacto", "extensiones"])) {
+  // 4. Teléfonos de contacto
+  if (
+    contieneAlgunaFrase(texto, [
+      "telefonos de contacto",
+      "teléfonos de contacto",
+      "telefonos",
+      "teléfonos",
+      "contacto",
+      "extensiones",
+      "numero de control escolar",
+      "número de control escolar",
+      "telefono de direccion",
+      "teléfono de dirección"
+    ])
+  ) {
     return {
       tipo: "texto",
       mensaje:
-        "Contacto:\n" +
-        "• Tel. (235) 323-15-45\n" +
-        "• Ext. 129 y 149\n" +
+        "☎️ *Teléfonos y contactos*\n\n" +
+        "• Tel. principal: (235) 323-15-45\n" +
         "• WhatsApp: 235 101 07 97\n\n" +
-        "Extensiones adicionales:\n" +
+        "*Extensiones:*\n" +
         "• Dirección: 158\n" +
         "• Control Escolar: 129 o 149\n" +
         "• Jefes de Carrera: 134\n" +
@@ -286,91 +368,8 @@ function construirRespuestaFija(texto, sesion) {
         "• Caja: 129\n" +
         "• Servicio Social: 177\n" +
         "• Residencias: 101\n" +
-        "• División de Estudios: 166"
-    };
-  }
-
-  if (contieneAlgunaFrase(texto, ["ubicacion", "ubicación", "direccion", "dirección", "donde estan", "donde se ubican", "mapa"])) {
-    return {
-      tipo: "texto",
-      mensaje:
-        "Ubicación:\n" +
-        "Km. 1.8 Carretera a Loma del Cojolite,\n" +
-        "C.P. 93821 Misantla, Veracruz, México.\n\n" +
-        "Google Maps:\n" +
-        "https://maps.app.goo.gl/UYednfvUfUB2Ec1C9"
-    };
-  }
-
-  if (contieneAlgunaFrase(texto, ["convocatoria", "imagen", "fichas 2026", "admision 2026", "admisión 2026"])) {
-    return {
-      tipo: "imagen",
-      imageUrl: URL_IMAGEN_FICHAS,
-      mensaje: "Te comparto la imagen informativa de fichas de admisión 2026.",
-    };
-  }
-
-  if (contieneAlgunaFrase(texto, ["curso propedeutico", "curso propedéutico", "propedeutico", "propedéutico"])) {
-    return {
-      tipo: "texto",
-      mensaje:
-        "Curso propedéutico:\n" +
-        "• Modalidad escolarizada: del 3 al 7 de agosto de 2026\n" +
-        "• Modalidad no escolarizada/virtual: 8 de agosto de 2026"
-    };
-  }
-
-  if (contieneAlgunaFrase(texto, ["inicio de clases", "cuando inician clases", "cuándo inician clases"])) {
-    return {
-      tipo: "texto",
-      mensaje:
-        "Inicio de clases:\n" +
-        "• Escolarizada: 17 de agosto de 2026\n" +
-        "• No escolarizada/virtual: 22 de agosto de 2026"
-    };
-  }
-
-  if (contieneAlgunaFrase(texto, ["registro en el sistema", "nip", "numero de control", "número de control"])) {
-    return {
-      tipo: "texto",
-      mensaje:
-        "Registro en el sistema:\n" +
-        "• Escolarizada: del 1 al 4 de septiembre de 2026\n" +
-        "• No escolarizada/virtual: 5 de septiembre de 2026\n\n" +
-        "Después se entrega la carga académica, número de control y NIP."
-    };
-  }
-
-  if (contieneAlgunaFrase(texto, ["idiomas", "ingles", "inglés", "frances", "francés", "curso de ingles", "curso de inglés"])) {
-    return {
-      tipo: "texto",
-      mensaje:
-        "Pagos de idiomas y cursos:\n" +
-        "• Curso de Francés 60 hrs Alumno Externo (Foráneo): $933.00\n" +
-        "• Curso de Francés 60 hrs: Gratuito\n" +
-        "• Curso de Inglés 60 hrs Alumno Externo (Foráneo): $933.00\n" +
-        "• Cédula para curso de idiomas: $732.00\n" +
-        "• Curso intensivo de Inglés: $732.00\n" +
-        "• Examen de Inglés: $622.00\n" +
-        "• Certificado de Inglés: $368.00\n" +
-        "• Certificado de Inglés grado Maestría: $1,037.00"
-    };
-  }
-
-  if (contieneAlgunaFrase(texto, ["constancia", "credencial", "seguro", "carga academica", "carga académica", "tramite", "trámite"])) {
-    return {
-      tipo: "texto",
-      mensaje:
-        "Algunos trámites escolares:\n" +
-        "• Carga académica: $118.00\n" +
-        "• Duplicado de carga académica: $122.00\n" +
-        "• Seguro contra accidentes y de vida: $70.00\n" +
-        "• Expedición de credencial: $122.00\n" +
-        "• Duplicado de credencial: $122.00\n" +
-        "• Constancia de estudios: $61.00\n" +
-        "• Constancia con calificaciones: $61.00\n" +
-        "• Constancia de buena conducta: $122.00\n\n" +
-        "Si deseas, escribe el nombre exacto del trámite."
+        "• División de Estudios: 166\n\n" +
+        'Si deseas recibir información más específica escribe *"Especifico"*.'
     };
   }
 
@@ -386,10 +385,11 @@ async function generarRespuestaIA(textoUsuario) {
     const promptSistema =
       "Eres un asistente virtual del Instituto Tecnológico Superior de Misantla. " +
       "Responde en español, de forma breve, clara y amable. " +
-      "Solo debes orientar sobre admisión, carreras, requisitos, horarios, trámites y contacto institucional. " +
-      "No inventes datos oficiales como fechas, costos, carreras, requisitos, ubicaciones o teléfonos. " +
-      "Si no sabes algo con certeza, di que no tienes el dato confirmado y sugiere comunicarse al 235 323 1545 ext. 129 o 149. " +
-      "No uses markdown complejo ni respuestas demasiado largas.";
+      "Solo debes orientar sobre admisión, carreras, posgrados, requisitos, trámites, costos, horarios y contacto institucional. " +
+      "No inventes datos oficiales como fechas, teléfonos, requisitos o costos que no hayan sido confirmados. " +
+      "Si no tienes certeza, indica que el usuario debe comunicarse al 235 323 1545 ext. 129 o 149. " +
+      "No uses markdown complejo. " +
+      "Puedes responder dudas más específicas como precios, constancias, titulación, certificaciones, idiomas y otros trámites.";
 
     const respuesta = await ai.models.generateContent({
       model: "gemini-2.5-flash",
@@ -410,13 +410,13 @@ async function generarRespuestaIA(textoUsuario) {
     const texto = respuesta.text?.trim();
 
     if (!texto) {
-      return "No pude generar una respuesta en este momento. Escribe *menu* para ver las opciones.";
+      return 'No pude generar una respuesta en este momento. Escribe *menu* o *"Especifico"* nuevamente.';
     }
 
     return texto;
   } catch (error) {
     console.error("Error con Gemini:", error);
-    return "En este momento no pude responder con inteligencia artificial. Escribe *menu* para ver las opciones.";
+    return 'En este momento no pude responder con inteligencia artificial. Intenta de nuevo o escribe *menu*.';
   }
 }
 
