@@ -26,9 +26,17 @@ const sesiones = new Map();
 
 const ai = geminiApiKey ? new GoogleGenAI({ apiKey: geminiApiKey }) : null;
 
-// URL directa de la imagen
 const URL_IMAGEN_FICHAS =
   "https://drive.google.com/uc?export=view&id=1HEHavShxvnpORxW5AbazRHzDMuTQbHUY";
+
+// URLs para URL Context
+const URLS_CONTEXTO = [
+  "https://misantla.tecnm.mx/",
+  "https://misantla.tecnm.mx/pagos/",
+  "https://drive.google.com/file/d/1nx54poSfildRdQmzhBdaW_fMyKfn5oZH/view?usp=sharing",
+  "https://drive.google.com/file/d/1itd0d2_SjbVyr0gUWBAPSxRYmJR6J2o5/view?usp=sharing",
+  "https://drive.google.com/file/d/1iIX6iNG-aCGl7dUh_UCjwBxuNmWLZV8y/view?usp=sharing",
+];
 
 if (!tokenVerificacion || !tokenWhatsapp || !idNumeroTelefono) {
   console.error("Faltan variables de entorno obligatorias.");
@@ -117,7 +125,6 @@ async function procesarMensajeEntrante(mensaje) {
   const textoNormalizado = normalizarTexto(textoRecibido);
   const sesionActual = obtenerSesion(numeroCliente);
 
-  // Activar modo específico
   if (textoNormalizado === "especifico") {
     sesiones.set(numeroCliente, {
       ...sesionActual,
@@ -127,12 +134,23 @@ async function procesarMensajeEntrante(mensaje) {
 
     await enviarTexto(
       numeroCliente,
-      "✅ *Modo Especifico activado*\n\nAhora puedes hacer preguntas más detalladas, por ejemplo:\n• costos de trámites\n• titulación maestría\n• constancias\n• certificaciones\n• dudas específicas del proceso\n\nPara volver al menú principal escribe *menu*."
+      '✅ *Modo Especifico activado*\n\nAhora tus preguntas se responderán con Gemini usando la página oficial y los documentos públicos como contexto.\n\nPara salir de este modo escribe *menu* o *salir*.'
     );
     return;
   }
 
-  // Regresar al menú y apagar modo específico
+  if (textoNormalizado === "salir") {
+    sesiones.set(numeroCliente, {
+      ...sesionActual,
+      modoEspecifico: false,
+      estado: "menu_principal",
+      actualizadaEn: Date.now(),
+    });
+
+    await enviarMenuPrincipal(numeroCliente);
+    return;
+  }
+
   if (
     textoNormalizado === "menu" ||
     textoNormalizado === "menú" ||
@@ -146,28 +164,14 @@ async function procesarMensajeEntrante(mensaje) {
       actualizadaEn: Date.now(),
     });
 
-    await enviarBotones(
-      numeroCliente,
-      "Hola, soy el asistente virtual del Instituto Tecnológico Superior de Misantla.\nSelecciona una opción:",
-      [
-        { id: "carreras", titulo: "Carreras" },
-        { id: "examen", titulo: "Examen" },
-        { id: "direccion_it", titulo: "Dirección" },
-      ]
-    );
-
-    // Mandamos el cuarto botón como texto guía porque WhatsApp solo permite 3 botones interactivos
-    await enviarTexto(
-      numeroCliente,
-      "También puedes escribir:\n*Telefonos de contacto*\n\nY si deseas recibir información más específica escribe *Especifico*."
-    );
+    await enviarMenuPrincipal(numeroCliente);
     return;
   }
 
-  const sesionActualizada = obtenerSesion(numeroCliente);
+  const sesionRefrescada = obtenerSesion(numeroCliente);
 
-  // Si el usuario activó "Especifico", usar Gemini
-  if (sesionActualizada.modoEspecifico) {
+  // Modo Especifico = Gemini sí o sí
+  if (sesionRefrescada.modoEspecifico) {
     console.log("Entrando a Gemini con:", textoRecibido);
     const respuestaIA = await generarRespuestaIA(textoRecibido);
     await enviarTexto(numeroCliente, respuestaIA);
@@ -180,17 +184,28 @@ async function procesarMensajeEntrante(mensaje) {
     if (respuestaFija.tipo === "texto") {
       await enviarTexto(numeroCliente, respuestaFija.mensaje);
     } else if (respuestaFija.tipo === "botones") {
-      await enviarBotones(numeroCliente, respuestaFija.mensaje, respuestaFija.botones);
+      await enviarBotones(
+        numeroCliente,
+        respuestaFija.mensaje,
+        respuestaFija.botones
+      );
     } else if (respuestaFija.tipo === "imagen") {
-      await enviarImagen(numeroCliente, respuestaFija.imageUrl, respuestaFija.mensaje);
+      await enviarImagen(
+        numeroCliente,
+        respuestaFija.imageUrl,
+        respuestaFija.mensaje
+      );
     } else if (respuestaFija.tipo === "texto_e_imagen") {
       await enviarTexto(numeroCliente, respuestaFija.mensaje);
-      await enviarImagen(numeroCliente, respuestaFija.imageUrl, respuestaFija.caption || "");
+      await enviarImagen(
+        numeroCliente,
+        respuestaFija.imageUrl,
+        respuestaFija.caption || ""
+      );
     }
     return;
   }
 
-  // Si no coincide en modo normal, sugerir específico
   await enviarTexto(
     numeroCliente,
     'No encontré una respuesta fija para esa duda.\n\nSi deseas recibir información más específica escribe *"Especifico"*.'
@@ -224,8 +239,24 @@ function contieneAlgunaFrase(texto, frases) {
   return frases.some((frase) => texto.includes(frase));
 }
 
+async function enviarMenuPrincipal(numeroDestino) {
+  await enviarBotones(
+    numeroDestino,
+    "Hola, soy el asistente virtual del ITS Misantla.\nSelecciona una opción:",
+    [
+      { id: "carreras", titulo: "Carreras" },
+      { id: "examen", titulo: "Examen" },
+      { id: "direccion_it", titulo: "Dirección" },
+    ]
+  );
+
+  await enviarTexto(
+    numeroDestino,
+    'También puedes escribir:\n*Telefonos de contacto*\n\nSi deseas recibir información más específica escribe *"Especifico"*.'
+  );
+}
+
 function construirRespuestaFija(texto) {
-  // 1. Carreras
   if (
     contieneAlgunaFrase(texto, [
       "carreras",
@@ -233,13 +264,10 @@ function construirRespuestaFija(texto) {
       "que carreras hay",
       "qué carreras hay",
       "carreras disponibles",
-      "carreras del itsm",
-      "carreras del tecnologico",
-      "carreras del tecnológico",
       "posgrados",
       "maestrias",
       "maestrías",
-      "doctorado"
+      "doctorado",
     ])
   ) {
     return {
@@ -262,13 +290,13 @@ function construirRespuestaFija(texto) {
         "• Maestría en Sistemas Computacionales\n" +
         "• Maestría en Ciencias de la Ingeniería\n" +
         "• Doctorado en Ciencias de la Ingeniería\n\n" +
-        'Si deseas recibir información más específica escribe *"Especifico"*.',
+        'Si deseas recibir información más específica escribe *"Especifico"*.'
+      ,
       imageUrl: URL_IMAGEN_FICHAS,
-      caption: "Imagen informativa de fichas de admisión 2026"
+      caption: "Imagen informativa de fichas de admisión 2026",
     };
   }
 
-  // 2. Examen
   if (
     contieneAlgunaFrase(texto, [
       "examen",
@@ -284,7 +312,7 @@ function construirRespuestaFija(texto) {
       "inscripcion",
       "inscripción",
       "ficha",
-      "fichas"
+      "fichas",
     ])
   ) {
     return {
@@ -305,11 +333,10 @@ function construirRespuestaFija(texto) {
         "• Carta de buena conducta\n" +
         "• Examen de tipo sanguíneo\n" +
         "• Constancia de vigencia de derechos del IMSS\n\n" +
-        'Si deseas recibir información más específica escribe *"Especifico"*.'
+        'Si deseas recibir información más específica escribe *"Especifico"*.',
     };
   }
 
-  // 3. Dirección del tecnológico
   if (
     contieneAlgunaFrase(texto, [
       "direccion del tecnologico",
@@ -321,7 +348,7 @@ function construirRespuestaFija(texto) {
       "donde estan",
       "donde se ubican",
       "mapa",
-      "domicilio"
+      "domicilio",
     ])
   ) {
     return {
@@ -335,11 +362,10 @@ function construirRespuestaFija(texto) {
         "• Sábados: 9:00 a.m. a 3:00 p.m.\n\n" +
         "*Google Maps:*\n" +
         "https://maps.app.goo.gl/UYednfvUfUB2Ec1C9\n\n" +
-        'Si deseas recibir información más específica escribe *"Especifico"*.'
+        'Si deseas recibir información más específica escribe *"Especifico"*.',
     };
   }
 
-  // 4. Teléfonos de contacto
   if (
     contieneAlgunaFrase(texto, [
       "telefonos de contacto",
@@ -348,10 +374,6 @@ function construirRespuestaFija(texto) {
       "teléfonos",
       "contacto",
       "extensiones",
-      "numero de control escolar",
-      "número de control escolar",
-      "telefono de direccion",
-      "teléfono de dirección"
     ])
   ) {
     return {
@@ -369,7 +391,7 @@ function construirRespuestaFija(texto) {
         "• Servicio Social: 177\n" +
         "• Residencias: 101\n" +
         "• División de Estudios: 166\n\n" +
-        'Si deseas recibir información más específica escribe *"Especifico"*.'
+        'Si deseas recibir información más específica escribe *"Especifico"*.',
     };
   }
 
@@ -378,45 +400,50 @@ function construirRespuestaFija(texto) {
 
 async function generarRespuestaIA(textoUsuario) {
   if (!ai) {
-    return "En este momento el asistente inteligente no está disponible. Escribe *menu* para ver las opciones.";
+    return 'En este momento el asistente inteligente no está disponible. Escribe *menu* para ver las opciones.';
   }
 
-  try {
-    const promptSistema =
-      "Eres un asistente virtual del Instituto Tecnológico Superior de Misantla. " +
-      "Responde en español, de forma breve, clara y amable. " +
-      "Solo debes orientar sobre admisión, carreras, posgrados, requisitos, trámites, costos, horarios y contacto institucional. " +
-      "No inventes datos oficiales como fechas, teléfonos, requisitos o costos que no hayan sido confirmados. " +
-      "Si no tienes certeza, indica que el usuario debe comunicarse al 235 323 1545 ext. 129 o 149. " +
-      "No uses markdown complejo. " +
-      "Puedes responder dudas más específicas como precios, constancias, titulación, certificaciones, idiomas y otros trámites.";
+  const prompt =
+    `Eres un asistente virtual del Instituto Tecnológico Superior de Misantla.
+Responde en español, de forma breve, clara y amable.
+Debes responder usando como fuente principal la página oficial y los documentos públicos proporcionados por URL Context.
+No inventes datos oficiales como fechas, costos, requisitos, teléfonos o carreras.
+Si una respuesta no está claramente respaldada por el contenido recuperado, indica que no tienes el dato confirmado y sugiere comunicarse al 235 323 1545 ext. 129 o 149.
+Si la pregunta trata sobre precios, constancias, trámites, cursos de inglés, titulación, maestría, doctorado, reinscripción o certificados, intenta responder con precisión usando las URLs dadas.
+Pregunta del usuario: ${textoUsuario}
 
-    const respuesta = await ai.models.generateContent({
+Usa estas fuentes:
+${URLS_CONTEXTO.join("\n")}
+`;
+
+  try {
+    const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              text:
-                `${promptSistema}\n\n` +
-                `Pregunta del usuario: ${textoUsuario}`
-            }
-          ]
-        }
-      ]
+      contents: [prompt],
+      config: {
+        tools: [{ urlContext: {} }],
+      },
     });
 
-    const texto = respuesta.text?.trim();
+    const texto = response.text?.trim();
+
+    console.log(
+      "URL Context metadata:",
+      JSON.stringify(response.candidates?.[0]?.urlContextMetadata || {}, null, 2)
+    );
 
     if (!texto) {
-      return 'No pude generar una respuesta en este momento. Escribe *menu* o *"Especifico"* nuevamente.';
+      return 'No pude generar una respuesta en este momento. Intenta de nuevo o escribe *menu*.';
     }
 
     return texto;
   } catch (error) {
-    console.error("Error con Gemini:", error);
-    return 'En este momento no pude responder con inteligencia artificial. Intenta de nuevo o escribe *menu*.';
+    console.error("===== ERROR GEMINI =====");
+    console.error("Mensaje:", error?.message);
+    console.error("Objeto completo:", error);
+    console.error("========================");
+
+    return 'En este momento no pude responder con inteligencia artificial. Intenta de nuevo en unos segundos o escribe *menu*.';
   }
 }
 
@@ -428,17 +455,17 @@ async function enviarTexto(numeroDestino, texto) {
     to: numeroDestino,
     type: "text",
     text: {
-      body: texto
-    }
+      body: texto,
+    },
   };
 
   const respuesta = await fetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${tokenWhatsapp}`,
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
 
   if (!respuesta.ok) {
@@ -456,27 +483,27 @@ async function enviarBotones(numeroDestino, texto, botones) {
     interactive: {
       type: "button",
       body: {
-        text: texto
+        text: texto,
       },
       action: {
         buttons: botones.slice(0, 3).map((boton) => ({
           type: "reply",
           reply: {
             id: boton.id,
-            title: boton.titulo
-          }
-        }))
-      }
-    }
+            title: boton.titulo,
+          },
+        })),
+      },
+    },
   };
 
   const respuesta = await fetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${tokenWhatsapp}`,
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
 
   if (!respuesta.ok) {
@@ -493,17 +520,17 @@ async function enviarImagen(numeroDestino, imageUrl, caption = "") {
     type: "image",
     image: {
       link: imageUrl,
-      caption
-    }
+      caption,
+    },
   };
 
   const respuesta = await fetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${tokenWhatsapp}`,
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
 
   if (!respuesta.ok) {
