@@ -242,7 +242,7 @@ function contieneAlgunaFrase(texto, frases) {
 async function enviarMenuPrincipal(numeroDestino) {
   await enviarBotones(
     numeroDestino,
-    "Hola, soy el asistente virtual del ITS Misantla.\nSelecciona una opción:",
+    "Hola, soy el asistente virtual del Instituto Tecnológico Superior de Misantla.\nSelecciona una opción:",
     [
       { id: "carreras", titulo: "Carreras" },
       { id: "examen", titulo: "Examen" },
