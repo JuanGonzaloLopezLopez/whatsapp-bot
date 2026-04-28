@@ -28,7 +28,7 @@ const ai = geminiApiKey ? new GoogleGenAI({ apiKey: geminiApiKey }) : null;
 const URL_IMAGEN_FICHAS =
   "https://drive.google.com/uc?export=view&id=1HEHavShxvnpORxW5AbazRHzDMuTQbHUY";
 
-// URLs públicas de apoyo para el modo específico
+// URLs públicas de apoyo para consultas específicas
 const URLS_CONTEXTO = [
   "https://misantla.tecnm.mx/",
   "https://misantla.tecnm.mx/pagos/",
@@ -37,7 +37,7 @@ const URLS_CONTEXTO = [
   "https://drive.google.com/file/d/1iIX6iNG-aCGl7dUh_UCjwBxuNmWLZV8y/view?usp=sharing",
 ];
 
-// Base institucional para respuestas consistentes
+// Base institucional fija para ayudar al modo específico
 const CONTEXTO_INSTITUCIONAL = `
 INSTITUCIÓN:
 Instituto Tecnológico Superior de Misantla.
@@ -67,16 +67,16 @@ Residencias: 101
 División de Estudios: 166
 
 CARRERAS DE LICENCIATURA:
-1. Ingeniería Industrial
-2. Ingeniería en Sistemas Computacionales
-3. Ingeniería Electromecánica
-4. Ingeniería Bioquímica
-5. Ingeniería Civil
-6. Ingeniería en Tecnologías de la Información y Comunicaciones
-7. Ingeniería Ambiental
-8. Ingeniería en Gestión Empresarial
-9. Ingeniería Petrolera
-10. Licenciatura en Gastronomía
+- Ingeniería Industrial
+- Ingeniería en Sistemas Computacionales
+- Ingeniería Electromecánica
+- Ingeniería Bioquímica
+- Ingeniería Civil
+- Ingeniería en Tecnologías de la Información y Comunicaciones
+- Ingeniería Ambiental
+- Ingeniería en Gestión Empresarial
+- Ingeniería Petrolera
+- Licenciatura en Gastronomía
 
 POSGRADOS:
 - Maestría en Ingeniería Industrial
@@ -111,7 +111,7 @@ INICIO DE CLASES:
 Escolarizada: 17 de agosto de 2026.
 No escolarizada / virtual: 22 de agosto de 2026.
 
-EJEMPLOS DE COSTOS:
+ALGUNOS COSTOS:
 - Curso de Francés 60 hrs Alumno Externo (Foráneo): $933.00
 - Curso de Francés 60 hrs: Gratuito
 - Curso de Inglés 60 hrs Alumno Externo (Foráneo): $933.00
@@ -224,7 +224,6 @@ async function procesarMensajeEntrante(mensaje) {
   const textoNormalizado = normalizarTexto(textoRecibido);
   const sesionActual = obtenerSesion(numeroCliente);
 
-  // Activar modo específico
   if (textoNormalizado === "especifico") {
     sesiones.set(numeroCliente, {
       ...sesionActual,
@@ -239,7 +238,6 @@ async function procesarMensajeEntrante(mensaje) {
     return;
   }
 
-  // Salir del modo específico
   if (textoNormalizado === "salir") {
     sesiones.set(numeroCliente, {
       ...sesionActual,
@@ -252,7 +250,6 @@ async function procesarMensajeEntrante(mensaje) {
     return;
   }
 
-  // Reinicio o saludo
   if (
     textoNormalizado === "menu" ||
     textoNormalizado === "menú" ||
@@ -272,7 +269,6 @@ async function procesarMensajeEntrante(mensaje) {
 
   const sesionRefrescada = obtenerSesion(numeroCliente);
 
-  // Modo específico = usar IA sí o sí
   if (sesionRefrescada.modoEspecifico) {
     console.log("Entrando a modo específico con:", textoRecibido);
     const respuestaIA = await generarRespuestaIA(textoRecibido);
@@ -286,10 +282,18 @@ async function procesarMensajeEntrante(mensaje) {
     if (respuestaFija.tipo === "texto") {
       await enviarTexto(numeroCliente, respuestaFija.mensaje);
     } else if (respuestaFija.tipo === "imagen") {
-      await enviarImagen(numeroCliente, respuestaFija.imageUrl, respuestaFija.mensaje);
+      await enviarImagen(
+        numeroCliente,
+        respuestaFija.imageUrl,
+        respuestaFija.mensaje
+      );
     } else if (respuestaFija.tipo === "texto_e_imagen") {
       await enviarTexto(numeroCliente, respuestaFija.mensaje);
-      await enviarImagen(numeroCliente, respuestaFija.imageUrl, respuestaFija.caption || "");
+      await enviarImagen(
+        numeroCliente,
+        respuestaFija.imageUrl,
+        respuestaFija.caption || ""
+      );
     }
     return;
   }
@@ -328,11 +332,19 @@ function contieneAlgunaFrase(texto, frases) {
 }
 
 async function enviarMenuPrincipal(numeroDestino) {
-  await enviarLista(numeroDestino);
+  await enviarBotones(
+    numeroDestino,
+    "Hola, soy el asistente virtual del Instituto Tecnológico Superior de Misantla.\nSelecciona una opción importante:",
+    [
+      { id: "op_btn_inscripciones", titulo: "Inscripciones" },
+      { id: "op_btn_examen", titulo: "Examen" },
+      { id: "op_btn_direccion", titulo: "Dirección" }
+    ]
+  );
 
   await enviarTexto(
     numeroDestino,
-    "También puedes responder con un número:\n" +
+    "También puedes responder con un número para más opciones:\n\n" +
       "1. Horarios de atención\n" +
       "2. Dirección del tecnológico\n" +
       "3. Carreras y posgrados\n" +
@@ -342,93 +354,77 @@ async function enviarMenuPrincipal(numeroDestino) {
   );
 }
 
-async function enviarLista(numeroDestino) {
-  const url = `https://graph.facebook.com/v22.0/${idNumeroTelefono}/messages`;
-
-  const payload = {
-    messaging_product: "whatsapp",
-    to: numeroDestino,
-    type: "interactive",
-    interactive: {
-      type: "list",
-      header: {
-        type: "text",
-        text: "Menú principal"
-      },
-      body: {
-        text: "Selecciona una opción o responde con un número."
-      },
-      footer: {
-        text: 'Para consultas más detalladas escribe "Especifico".'
-      },
-      action: {
-        button: "Ver opciones",
-        sections: [
-          {
-            title: "Información general",
-            rows: [
-              {
-                id: "op_1_horarios",
-                title: "1. Horarios de atención",
-                description: "Consulta nuestros horarios"
-              },
-              {
-                id: "op_2_direccion",
-                title: "2. Dirección del tecnológico",
-                description: "Ubicación y Google Maps"
-              },
-              {
-                id: "op_3_carreras",
-                title: "3. Carreras y posgrados",
-                description: "Oferta educativa"
-              },
-              {
-                id: "op_4_examen",
-                title: "4. Examen y requisitos",
-                description: "Proceso de admisión"
-              },
-              {
-                id: "op_5_telefonos",
-                title: "5. Teléfonos de contacto",
-                description: "Números y extensiones"
-              }
-            ]
-          }
-        ]
-      }
-    }
-  };
-
-  const respuesta = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${tokenWhatsapp}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(payload)
-  });
-
-  if (!respuesta.ok) {
-    console.error("Error enviando lista:", await respuesta.text());
-  }
-}
-
 function construirRespuestaFija(texto) {
-  // Números
-  if (texto === "1" || contieneAlgunaFrase(texto, ["horarios de atencion", "horarios de atención", "horarios", "horario", "horarios de oficina"])) {
+  // Botón Inscripciones
+  if (
+    texto === "op_btn_inscripciones" ||
+    contieneAlgunaFrase(texto, [
+      "inscripciones",
+      "inscripcion",
+      "inscripción",
+      "ficha",
+      "fichas"
+    ])
+  ) {
     return {
       tipo: "texto",
       mensaje:
-        "🕒 *Horarios de atención*\n\n" +
-        "• Lunes a viernes: 8:00 a.m. a 2:00 p.m. y 3:00 p.m. a 5:00 p.m.\n" +
-        "• Sábados: 9:00 a.m. a 3:00 p.m.\n\n" +
+        "📝 *Información de inscripciones*\n\n" +
+        "*El proceso de admisión es gratuito.*\n" +
+        "La ficha, inscripción y reinscripción son gratuitas.\n\n" +
+        "*Requisitos principales:*\n" +
+        "• CURP\n" +
+        "• Certificado de bachillerato o constancia de conclusión\n" +
+        "• Acta de nacimiento\n" +
+        "• Carta de buena conducta\n" +
+        "• Examen de tipo sanguíneo\n" +
+        "• Constancia de vigencia de derechos del IMSS\n\n" +
         'Si deseas información más detallada escribe *"Especifico"*.'
     };
   }
 
+  // Botón Examen y opción 4
   if (
+    texto === "op_btn_examen" ||
+    texto === "4" ||
+    contieneAlgunaFrase(texto, [
+      "examen",
+      "fecha del examen",
+      "cuando es el examen",
+      "cuándo es el examen",
+      "evaluacion diagnostica",
+      "evaluación diagnóstica",
+      "admision",
+      "admisión",
+      "requisitos",
+      "documentos"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje:
+        "📘 *Examen y requisitos*\n\n" +
+        "*Fecha del examen / evaluación diagnóstica:*\n" +
+        "• 3 de julio de 2026\n" +
+        "• Se realiza en línea\n\n" +
+        "*Publicación de resultados:*\n" +
+        "• 8 de julio de 2026\n\n" +
+        "*Requisitos principales:*\n" +
+        "• CURP\n" +
+        "• Certificado de bachillerato o constancia de conclusión\n" +
+        "• Acta de nacimiento\n" +
+        "• Carta de buena conducta\n" +
+        "• Examen de tipo sanguíneo\n" +
+        "• Constancia de vigencia de derechos del IMSS\n\n" +
+        "*Importante:* el proceso de admisión es gratuito.\n\n" +
+        'Si deseas información más detallada escribe *"Especifico"*.'
+    };
+  }
+
+  // Botón Dirección y opción 2
+  if (
+    texto === "op_btn_direccion" ||
     texto === "2" ||
-    texto === "op_2_direccion" ||
     contieneAlgunaFrase(texto, [
       "direccion del tecnologico",
       "dirección del tecnológico",
@@ -457,9 +453,30 @@ function construirRespuestaFija(texto) {
     };
   }
 
+  // Opción 1
+  if (
+    texto === "1" ||
+    contieneAlgunaFrase(texto, [
+      "horarios de atencion",
+      "horarios de atención",
+      "horarios",
+      "horario",
+      "horarios de oficina"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje:
+        "🕒 *Horarios de atención*\n\n" +
+        "• Lunes a viernes: 8:00 a.m. a 2:00 p.m. y 3:00 p.m. a 5:00 p.m.\n" +
+        "• Sábados: 9:00 a.m. a 3:00 p.m.\n\n" +
+        'Si deseas información más detallada escribe *"Especifico"*.'
+    };
+  }
+
+  // Opción 3
   if (
     texto === "3" ||
-    texto === "op_3_carreras" ||
     contieneAlgunaFrase(texto, [
       "carreras",
       "carrera",
@@ -497,50 +514,9 @@ function construirRespuestaFija(texto) {
     };
   }
 
-  if (
-    texto === "4" ||
-    texto === "op_4_examen" ||
-    contieneAlgunaFrase(texto, [
-      "examen",
-      "fecha del examen",
-      "cuando es el examen",
-      "cuándo es el examen",
-      "evaluacion diagnostica",
-      "evaluación diagnóstica",
-      "admision",
-      "admisión",
-      "requisitos",
-      "documentos",
-      "ficha",
-      "fichas"
-    ])
-  ) {
-    return {
-      tipo: "texto",
-      mensaje:
-        "📝 *Examen y proceso de admisión*\n\n" +
-        "*El proceso de admisión es gratuito.*\n" +
-        "La ficha, inscripción y reinscripción son gratuitas.\n\n" +
-        "*Fecha del examen / evaluación diagnóstica:*\n" +
-        "• 3 de julio de 2026\n" +
-        "• Se realiza en línea\n\n" +
-        "*Publicación de resultados:*\n" +
-        "• 8 de julio de 2026\n\n" +
-        "*Requisitos principales:*\n" +
-        "• CURP\n" +
-        "• Certificado de bachillerato o constancia de conclusión\n" +
-        "• Acta de nacimiento\n" +
-        "• Carta de buena conducta\n" +
-        "• Examen de tipo sanguíneo\n" +
-        "• Constancia de vigencia de derechos del IMSS\n\n" +
-        'Si deseas información más detallada escribe *"Especifico"*.'
-    };
-  }
-
+  // Opción 5
   if (
     texto === "5" ||
-    texto === "op_5_telefonos" ||
-    texto === "op_1_horarios" ||
     contieneAlgunaFrase(texto, [
       "telefonos",
       "teléfonos",
@@ -550,17 +526,6 @@ function construirRespuestaFija(texto) {
       "extensiones"
     ])
   ) {
-    if (texto === "op_1_horarios") {
-      return {
-        tipo: "texto",
-        mensaje:
-          "🕒 *Horarios de atención*\n\n" +
-          "• Lunes a viernes: 8:00 a.m. a 2:00 p.m. y 3:00 p.m. a 5:00 p.m.\n" +
-          "• Sábados: 9:00 a.m. a 3:00 p.m.\n\n" +
-          'Si deseas información más detallada escribe *"Especifico"*.'
-      };
-    }
-
     return {
       tipo: "texto",
       mensaje:
@@ -592,8 +557,8 @@ async function generarRespuestaIA(textoUsuario) {
 Responde SOLO en español.
 Nunca respondas en inglés.
 Nunca menciones que eres una IA.
-Nunca menciones Gemini.
-Nunca menciones Drive, PDFs, documentos, archivos, enlaces internos, URL Context, fuentes recuperadas ni herramientas.
+Nunca menciones nombres de modelos.
+Nunca menciones Drive, PDFs, documentos, archivos, enlaces internos, fuentes recuperadas ni herramientas.
 Responde como asistente virtual institucional del Instituto Tecnológico Superior de Misantla.
 Da respuestas directas, claras, útiles y breves.
 Si te preguntan por dirección, incluye también el enlace de Google Maps.
@@ -625,7 +590,6 @@ ${textoUsuario}
       return "No pude responder esa consulta en este momento. Intenta de nuevo o escribe *menu*.";
     }
 
-    // Limpieza extra por si el modelo intenta hablar de fuentes o inglés
     texto = texto
       .replace(/gemini/gi, "")
       .replace(/drive/gi, "")
@@ -635,7 +599,6 @@ ${textoUsuario}
       .replace(/sources/gi, "")
       .trim();
 
-    // Si por alguna razón devuelve mucho inglés, forzar respuesta segura
     const frasesIngles = [
       "the website",
       "therefore",
@@ -644,7 +607,9 @@ ${textoUsuario}
       "i will",
       "i do not have",
       "source",
-      "retrieved"
+      "retrieved",
+      "mentions",
+      "highly probable"
     ];
 
     const pareceIngles = frasesIngles.some((frase) =>
@@ -689,6 +654,44 @@ async function enviarTexto(numeroDestino, texto) {
 
   if (!respuesta.ok) {
     console.error("Error enviando texto:", await respuesta.text());
+  }
+}
+
+async function enviarBotones(numeroDestino, texto, botones) {
+  const url = `https://graph.facebook.com/v22.0/${idNumeroTelefono}/messages`;
+
+  const payload = {
+    messaging_product: "whatsapp",
+    to: numeroDestino,
+    type: "interactive",
+    interactive: {
+      type: "button",
+      body: {
+        text: texto
+      },
+      action: {
+        buttons: botones.slice(0, 3).map((boton) => ({
+          type: "reply",
+          reply: {
+            id: boton.id,
+            title: boton.titulo
+          }
+        }))
+      }
+    }
+  };
+
+  const respuesta = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${tokenWhatsapp}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!respuesta.ok) {
+    console.error("Error enviando botones:", await respuesta.text());
   }
 }
 
