@@ -250,21 +250,7 @@ async function procesarMensajeEntrante(mensaje) {
     return;
   }
 
-  if (
-    textoNormalizado === "menu" ||
-    textoNormalizado === "menú" ||
-    textoNormalizado === "hola" ||
-    textoNormalizado === "Disculpe" ||
-    textoNormalizado === "Buenos dias" ||
-    textoNormalizado === "Buenos tardes" ||
-    textoNormalizado === "Buenos noches" ||
-    textoNormalizado === "Que tal" ||
-    textoNormalizado === "Hola" ||
-    textoNormalizado === "ola" ||
-    textoNormalizado === "Una Pregunta" ||
-    textoNormalizado === "Hola que tal" ||
-    textoNormalizado === "inicio"
-  ) {
+  if (esSaludoOInicio(textoNormalizado)) {
     sesiones.set(numeroCliente, {
       ...sesionActual,
       modoEspecifico: false,
@@ -340,6 +326,59 @@ function contieneAlgunaFrase(texto, frases) {
   return frases.some((frase) => texto.includes(frase));
 }
 
+function esSaludoOInicio(texto) {
+  const frasesSaludo = [
+    "menu",
+    "menú",
+    "inicio",
+    "hola",
+    "ola",
+    "holaa",
+    "holi",
+    "holis",
+    "buenos dias",
+    "buen día",
+    "buen dia",
+    "buenas tardes",
+    "buenas noches",
+    "que tal",
+    "qué tal",
+    "una pregunta",
+    "una duda",
+    "disculpe",
+    "disculpa",
+    "oye",
+    "oiga",
+    "informacion",
+    "información",
+    "quiero informacion",
+    "quiero información",
+    "me podrias ayudar",
+    "me podrías ayudar",
+    "ayuda",
+    "necesito informacion",
+    "necesito información",
+    "tengo una duda",
+    "tengo una pregunta",
+    "quisiera informacion",
+    "quisiera información",
+    "quisiera informes",
+    "quiero informes",
+    "me puede ayudar",
+    "me puedes ayudar",
+    "puede ayudarme",
+    "puedes ayudarme",
+    "quiero preguntar",
+    "quiero hacer una pregunta",
+    "tengo dudas",
+    "tengo una consulta",
+    "necesito ayuda",
+    "informes"
+  ];
+
+  return frasesSaludo.some((frase) => texto.includes(frase));
+}
+
 async function enviarMenuPrincipal(numeroDestino) {
   await enviarBotones(
     numeroDestino,
@@ -364,7 +403,6 @@ async function enviarMenuPrincipal(numeroDestino) {
 }
 
 function construirRespuestaFija(texto) {
-  // Botón Inscripciones
   if (
     texto === "op_btn_inscripciones" ||
     contieneAlgunaFrase(texto, [
@@ -392,7 +430,6 @@ function construirRespuestaFija(texto) {
     };
   }
 
-  // Botón Examen y opción 4
   if (
     texto === "op_btn_examen" ||
     texto === "4" ||
@@ -430,7 +467,6 @@ function construirRespuestaFija(texto) {
     };
   }
 
-  // Botón Dirección y opción 2
   if (
     texto === "op_btn_direccion" ||
     texto === "2" ||
@@ -462,7 +498,6 @@ function construirRespuestaFija(texto) {
     };
   }
 
-  // Opción 1
   if (
     texto === "1" ||
     contieneAlgunaFrase(texto, [
@@ -483,7 +518,6 @@ function construirRespuestaFija(texto) {
     };
   }
 
-  // Opción 3
   if (
     texto === "3" ||
     contieneAlgunaFrase(texto, [
@@ -523,7 +557,6 @@ function construirRespuestaFija(texto) {
     };
   }
 
-  // Opción 5
   if (
     texto === "5" ||
     contieneAlgunaFrase(texto, [
