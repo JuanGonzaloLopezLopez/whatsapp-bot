@@ -254,6 +254,15 @@ async function procesarMensajeEntrante(mensaje) {
     textoNormalizado === "menu" ||
     textoNormalizado === "menú" ||
     textoNormalizado === "hola" ||
+    textoNormalizado === "Disculpe" ||
+    textoNormalizado === "Buenos dias" ||
+    textoNormalizado === "Buenos tardes" ||
+    textoNormalizado === "Buenos noches" ||
+    textoNormalizado === "Que tal" ||
+    textoNormalizado === "Hola" ||
+    textoNormalizado === "ola" ||
+    textoNormalizado === "Una Pregunta" ||
+    textoNormalizado === "Hola que tal" ||
     textoNormalizado === "inicio"
   ) {
     sesiones.set(numeroCliente, {
