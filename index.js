@@ -28,7 +28,6 @@ const ai = geminiApiKey ? new GoogleGenAI({ apiKey: geminiApiKey }) : null;
 const URL_IMAGEN_FICHAS =
   "https://drive.google.com/uc?export=view&id=1HEHavShxvnpORxW5AbazRHzDMuTQbHUY";
 
-// URLs públicas de apoyo para consultas específicas
 const URLS_CONTEXTO = [
   "https://misantla.tecnm.mx/",
   "https://misantla.tecnm.mx/pagos/",
@@ -57,6 +56,14 @@ WhatsApp: 235 101 07 97
 
 CORREO DIRECCIÓN GENERAL:
 dir_itsmisantla@itsm.edu.mx
+
+REDES SOCIALES Y PÁGINA OFICIAL:
+- Sitio web: https://misantla.tecnm.mx/
+- Portal de pagos: https://misantla.tecnm.mx/pagos/
+- Facebook: https://www.facebook.com/TecnmMisantla#
+- Instagram: https://www.instagram.com/tecnmmisantla/
+- TikTok: https://www.tiktok.com/@tecnmmisantla
+- YouTube: https://www.youtube.com/user/SNESTMX
 
 EXTENSIONES:
 Dirección: 158
@@ -397,7 +404,8 @@ async function enviarMenuPrincipal(numeroDestino) {
     "También puedes responder con un número para más opciones:\n\n" +
       "1. Horarios de atención\n" +
       "2. Carreras y posgrados\n" +
-      "3. Teléfonos de contacto\n\n" +
+      "3. Teléfonos de contacto\n" +
+      "4. Precios y trámites\n\n" +
       'Si deseas información más detallada escribe *"Especifico"*.'
   );
 }
@@ -566,7 +574,11 @@ function construirRespuestaFija(texto) {
       "telefonos de contacto",
       "teléfonos de contacto",
       "contacto",
-      "extensiones"
+      "extensiones",
+      "redes sociales",
+      "redes",
+      "pagina oficial",
+      "página oficial"
     ])
   ) {
     return {
@@ -585,6 +597,52 @@ function construirRespuestaFija(texto) {
         "• Servicio Social: 177\n" +
         "• Residencias: 101\n" +
         "• División de Estudios: 166\n\n" +
+        "*Redes sociales y página oficial:*\n" +
+        "• Sitio web: https://misantla.tecnm.mx/\n" +
+        "• Portal de pagos: https://misantla.tecnm.mx/pagos/\n" +
+        "• Facebook: https://www.facebook.com/TecnmMisantla#\n" +
+        "• Instagram: https://www.instagram.com/tecnmmisantla/\n" +
+        "• TikTok: https://www.tiktok.com/@tecnmmisantla\n" +
+        "• YouTube: https://www.youtube.com/user/SNESTMX\n\n" +
+        'Si deseas información más detallada escribe *"Especifico"*.'
+    };
+  }
+
+  if (
+    texto === "4" ||
+    contieneAlgunaFrase(texto, [
+      "precios",
+      "costos",
+      "tramites",
+      "trámites",
+      "pagos",
+      "portal de pagos",
+      "precio de tramites",
+      "precio de trámites"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje:
+        "💳 *Precios de trámites y servicios*\n\n" +
+        "*Algunos costos frecuentes:*\n" +
+        "• Constancia de estudios: $61.00\n" +
+        "• Constancia con calificaciones: $61.00\n" +
+        "• Constancia de buena conducta: $122.00\n" +
+        "• Constancia del Seguro Social: $94.00\n" +
+        "• Duplicado de constancia: $61.00\n" +
+        "• Carga académica: $118.00\n" +
+        "• Duplicado de carga académica: $122.00\n" +
+        "• Expedición de credencial: $122.00\n" +
+        "• Duplicado de credencial: $122.00\n" +
+        "• Seguro contra accidentes y de vida: $70.00\n" +
+        "• Curso intensivo de Inglés: $732.00\n" +
+        "• Examen de Inglés: $622.00\n" +
+        "• Certificado de Inglés: $368.00\n" +
+        "• Trámite de titulación Licenciatura: $7,437.00\n" +
+        "• Trámite de titulación Maestría: $12,191.00\n\n" +
+        "*Portal de pagos:*\n" +
+        "https://misantla.tecnm.mx/pagos/\n\n" +
         'Si deseas información más detallada escribe *"Especifico"*.'
     };
   }
@@ -607,6 +665,7 @@ Responde como asistente virtual institucional del Instituto Tecnológico Superio
 Da respuestas directas, claras, útiles y breves.
 Si te preguntan por dirección, incluye también el enlace de Google Maps.
 Si te preguntan por horarios, responde con los horarios exactos.
+Si te preguntan por precios, pagos o trámites, puedes mencionar también el portal de pagos: https://misantla.tecnm.mx/pagos/
 Si no existe dato confirmado, di que no cuentas con el dato confirmado y sugiere comunicarse al (235) 323-15-45 ext. 129 o 149.
 No inventes datos.
 
