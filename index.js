@@ -37,7 +37,6 @@ const URLS_CONTEXTO = [
   "https://drive.google.com/file/d/1iIX6iNG-aCGl7dUh_UCjwBxuNmWLZV8y/view?usp=sharing",
 ];
 
-// Base institucional fija para ayudar al modo específico
 const CONTEXTO_INSTITUCIONAL = `
 INSTITUCIÓN:
 Instituto Tecnológico Superior de Misantla.
@@ -55,6 +54,9 @@ Sábados: 9:00 a.m. a 3:00 p.m.
 TELÉFONOS:
 Tel. principal: (235) 323-15-45
 WhatsApp: 235 101 07 97
+
+CORREO DIRECCIÓN GENERAL:
+dir_itsmisantla@itsm.edu.mx
 
 EXTENSIONES:
 Dirección: 158
@@ -394,10 +396,8 @@ async function enviarMenuPrincipal(numeroDestino) {
     numeroDestino,
     "También puedes responder con un número para más opciones:\n\n" +
       "1. Horarios de atención\n" +
-      "2. Dirección del tecnológico\n" +
-      "3. Carreras y posgrados\n" +
-      "4. Examen y requisitos\n" +
-      "5. Teléfonos de contacto\n\n" +
+      "2. Carreras y posgrados\n" +
+      "3. Teléfonos de contacto\n\n" +
       'Si deseas información más detallada escribe *"Especifico"*.'
   );
 }
@@ -414,7 +414,7 @@ function construirRespuestaFija(texto) {
     ])
   ) {
     return {
-      tipo: "texto",
+      tipo: "texto_e_imagen",
       mensaje:
         "📝 *Información de inscripciones*\n\n" +
         "*El proceso de admisión es gratuito.*\n" +
@@ -427,12 +427,14 @@ function construirRespuestaFija(texto) {
         "• Examen de tipo sanguíneo\n" +
         "• Constancia de vigencia de derechos del IMSS\n\n" +
         'Si deseas información más detallada escribe *"Especifico"*.'
+      ,
+      imageUrl: URL_IMAGEN_FICHAS,
+      caption: "Imagen informativa de fichas de admisión 2026"
     };
   }
 
   if (
     texto === "op_btn_examen" ||
-    texto === "4" ||
     contieneAlgunaFrase(texto, [
       "examen",
       "fecha del examen",
@@ -469,7 +471,6 @@ function construirRespuestaFija(texto) {
 
   if (
     texto === "op_btn_direccion" ||
-    texto === "2" ||
     contieneAlgunaFrase(texto, [
       "direccion del tecnologico",
       "dirección del tecnológico",
@@ -519,7 +520,7 @@ function construirRespuestaFija(texto) {
   }
 
   if (
-    texto === "3" ||
+    texto === "2" ||
     contieneAlgunaFrase(texto, [
       "carreras",
       "carrera",
@@ -558,7 +559,7 @@ function construirRespuestaFija(texto) {
   }
 
   if (
-    texto === "5" ||
+    texto === "3" ||
     contieneAlgunaFrase(texto, [
       "telefonos",
       "teléfonos",
@@ -573,7 +574,8 @@ function construirRespuestaFija(texto) {
       mensaje:
         "☎️ *Teléfonos y contactos*\n\n" +
         "• Tel. principal: (235) 323-15-45\n" +
-        "• WhatsApp: 235 101 07 97\n\n" +
+        "• WhatsApp: 235 101 07 97\n" +
+        "• Correo Dirección General: dir_itsmisantla@itsm.edu.mx\n\n" +
         "*Extensiones:*\n" +
         "• Dirección: 158\n" +
         "• Control Escolar: 129 o 149\n" +
