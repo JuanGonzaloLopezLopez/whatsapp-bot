@@ -643,7 +643,7 @@ function construirRespuestaFija(texto) {
         "• Trámite de titulación Maestría: $12,191.00\n\n" +
         "*Portal de pagos:*\n" +
         "https://misantla.tecnm.mx/pagos/\n\n" +
-        'Si deseas información más detallada escribe *"Especifico"*.'
+        'Si deseas información más detallada o informacion de algun otro tramite escribe *"Especifico"*.'
     };
   }
 
