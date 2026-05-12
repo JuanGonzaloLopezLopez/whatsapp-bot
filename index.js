@@ -41,14 +41,14 @@ INSTITUCIÓN:
 Instituto Tecnológico Superior de Misantla.
 
 UBICACIÓN:
-Km. 1.8 Carretera a Loma del Cojolite, C.P. 93821, Misantla, Veracruz, México.
+Km. 1.8 Carretera a Loma del Cojolite, C.P. 93850, Misantla, Veracruz, México.
 
 GOOGLE MAPS:
 https://maps.app.goo.gl/UYednfvUfUB2Ec1C9
 
 HORARIOS DE ATENCIÓN:
-Lunes a viernes: 8:00 a.m. a 2:00 p.m. y 3:00 p.m. a 5:00 p.m.
-Sábados: 9:00 a.m. a 3:00 p.m.
+Lunes a viernes: 9:00 a 14:00 y de 15:00 a 17:00 horas.
+Sábados: 9:00 a 14:00 horas.
 
 TELÉFONOS:
 Tel. principal: (235) 323-15-45
@@ -59,7 +59,6 @@ dir_itsmisantla@itsm.edu.mx
 
 REDES SOCIALES Y PÁGINA OFICIAL:
 - Sitio web: https://misantla.tecnm.mx/
-- Portal de pagos: https://misantla.tecnm.mx/pagos/
 - Facebook: https://www.facebook.com/TecnmMisantla#
 - Instagram: https://www.instagram.com/tecnmmisantla/
 - TikTok: https://www.tiktok.com/@tecnmmisantla
@@ -104,46 +103,12 @@ La ficha, inscripción y reinscripción son gratuitas.
 Examen de admisión / evaluación diagnóstica: 3 de julio de 2026.
 Publicación de resultados: 8 de julio de 2026.
 
-REQUISITOS PRINCIPALES:
+REQUISITOS PARA EXAMEN / ADMISIÓN:
 - CURP
-- Certificado de bachillerato o constancia de conclusión
-- Acta de nacimiento
-- Carta de buena conducta
-- Examen de tipo sanguíneo
-- Constancia de vigencia de derechos del IMSS
+- Constancia de calificaciones o certificado
 
-CURSO PROPEDÉUTICO:
-Escolarizada: del 3 al 7 de agosto de 2026.
-No escolarizada / virtual: 8 de agosto de 2026.
-
-INICIO DE CLASES:
-Escolarizada: 17 de agosto de 2026.
-No escolarizada / virtual: 22 de agosto de 2026.
-
-ALGUNOS COSTOS:
-- Curso de Francés 60 hrs Alumno Externo (Foráneo): $933.00
-- Curso de Francés 60 hrs: Gratuito
-- Curso de Inglés 60 hrs Alumno Externo (Foráneo): $933.00
-- Cédula para curso de idiomas: $732.00
-- Curso intensivo de Inglés: $732.00
-- Examen de Inglés: $622.00
-- Certificado de Inglés: $368.00
-- Certificado de Inglés grado Maestría: $1,037.00
-- Carga académica: $118.00
-- Duplicado de carga académica: $122.00
-- Seguro contra accidentes y de vida: $70.00
-- Expedición de credencial: $122.00
-- Duplicado de credencial: $122.00
-- Constancia de estudios: $61.00
-- Constancia con calificaciones: $61.00
-- Constancia de buena conducta: $122.00
-- Constancia del Seguro Social: $94.00
-- Duplicado de constancia: $61.00
-- Trámite de titulación Licenciatura: $7,437.00
-- Trámite de titulación Maestría: $12,191.00
-- Título profesional grado Maestría: $7,802.00
-- Examen profesional grado Maestría: $1,829.00
-- Acta examen profesional grado Maestría: $427.00
+PARA PAGOS:
+Comunicarse con Control Escolar a la extensión 129 o 149.
 `;
 
 if (!tokenVerificacion || !tokenWhatsapp || !idNumeroTelefono) {
@@ -274,7 +239,6 @@ async function procesarMensajeEntrante(mensaje) {
   const sesionRefrescada = obtenerSesion(numeroCliente);
 
   if (sesionRefrescada.modoEspecifico) {
-    console.log("Entrando a modo específico con:", textoRecibido);
     const respuestaIA = await generarRespuestaIA(textoRecibido);
     await enviarTexto(numeroCliente, respuestaIA);
     return;
@@ -285,12 +249,6 @@ async function procesarMensajeEntrante(mensaje) {
   if (respuestaFija) {
     if (respuestaFija.tipo === "texto") {
       await enviarTexto(numeroCliente, respuestaFija.mensaje);
-    } else if (respuestaFija.tipo === "imagen") {
-      await enviarImagen(
-        numeroCliente,
-        respuestaFija.imageUrl,
-        respuestaFija.mensaje
-      );
     } else if (respuestaFija.tipo === "texto_e_imagen") {
       await enviarTexto(numeroCliente, respuestaFija.mensaje);
       await enviarImagen(
@@ -389,51 +347,108 @@ function esSaludoOInicio(texto) {
 }
 
 async function enviarMenuPrincipal(numeroDestino) {
-  await enviarBotones(
-    numeroDestino,
-    "Hola, soy el asistente virtual del Instituto Tecnológico Superior de Misantla.\nSelecciona una opción importante:",
-    [
-      { id: "op_btn_inscripciones", titulo: "Inscripciones" },
-      { id: "op_btn_examen", titulo: "Examen" },
-      { id: "op_btn_direccion", titulo: "Dirección" }
-    ]
-  );
+  await enviarLista(numeroDestino);
 
   await enviarTexto(
     numeroDestino,
-    "También puedes responder con un número para más opciones:\n\n" +
-      "1. Horarios de atención\n" +
-      "2. Carreras y posgrados\n" +
-      "3. Teléfonos de contacto\n" +
-      "4. Precios y trámites\n\n" +
+    "También puedes escribir directamente alguna opción del menú.\n\n" +
       'Si deseas información más detallada escribe *"Especifico"*.'
   );
 }
 
+async function enviarLista(numeroDestino) {
+  const url = `https://graph.facebook.com/v22.0/${idNumeroTelefono}/messages`;
+
+  const payload = {
+    messaging_product: "whatsapp",
+    to: numeroDestino,
+    type: "interactive",
+    interactive: {
+      type: "list",
+      header: {
+        type: "text",
+        text: "Menú principal"
+      },
+      body: {
+        text: "Selecciona una opción:"
+      },
+      footer: {
+        text: 'Para consultas más detalladas escribe "Especifico".'
+      },
+      action: {
+        button: "Ver opciones",
+        sections: [
+          {
+            title: "Información general",
+            rows: [
+              {
+                id: "op_btn_fichas",
+                title: "Fichas de admisión",
+                description: "Fichas, examen y requisitos"
+              },
+              {
+                id: "op_btn_oferta",
+                title: "Oferta educativa",
+                description: "Carreras y postgrados"
+              },
+              {
+                id: "op_btn_redes",
+                title: "Redes sociales",
+                description: "Sitio web y redes oficiales"
+              },
+              {
+                id: "op_btn_ubicacion",
+                title: "Ubicación del ITSM",
+                description: "Dirección y horarios"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  };
+
+  const respuesta = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${tokenWhatsapp}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!respuesta.ok) {
+    console.error("Error enviando lista:", await respuesta.text());
+  }
+}
+
 function construirRespuestaFija(texto) {
   if (
-    texto === "op_btn_inscripciones" ||
+    texto === "op_btn_fichas" ||
     contieneAlgunaFrase(texto, [
+      "fichas de admision",
+      "fichas de admisión",
+      "fichas",
+      "ficha",
       "inscripciones",
       "inscripcion",
-      "inscripción",
-      "ficha",
-      "fichas"
+      "inscripción"
     ])
   ) {
     return {
       tipo: "texto_e_imagen",
       mensaje:
-        "📝 *Información de inscripciones*\n\n" +
+        "📝 *Fichas de admisión*\n\n" +
         "*El proceso de admisión es gratuito.*\n" +
         "La ficha, inscripción y reinscripción son gratuitas.\n\n" +
-        "*Requisitos principales:*\n" +
+        "*Examen de admisión / evaluación diagnóstica:*\n" +
+        "• 3 de julio de 2026\n" +
+        "• Se realiza en línea\n\n" +
+        "*Publicación de resultados:*\n" +
+        "• 8 de julio de 2026\n\n" +
+        "*Requisitos para el examen:*\n" +
         "• CURP\n" +
-        "• Certificado de bachillerato o constancia de conclusión\n" +
-        "• Acta de nacimiento\n" +
-        "• Carta de buena conducta\n" +
-        "• Examen de tipo sanguíneo\n" +
-        "• Constancia de vigencia de derechos del IMSS\n\n" +
+        "• Constancia de calificaciones o certificado\n\n" +
         'Si deseas información más detallada escribe *"Especifico"*.'
       ,
       imageUrl: URL_IMAGEN_FICHAS,
@@ -442,108 +457,23 @@ function construirRespuestaFija(texto) {
   }
 
   if (
-    texto === "op_btn_examen" ||
+    texto === "op_btn_oferta" ||
     contieneAlgunaFrase(texto, [
-      "examen",
-      "fecha del examen",
-      "cuando es el examen",
-      "cuándo es el examen",
-      "evaluacion diagnostica",
-      "evaluación diagnóstica",
-      "admision",
-      "admisión",
-      "requisitos",
-      "documentos"
-    ])
-  ) {
-    return {
-      tipo: "texto",
-      mensaje:
-        "📘 *Examen y requisitos*\n\n" +
-        "*Fecha del examen / evaluación diagnóstica:*\n" +
-        "• 3 de julio de 2026\n" +
-        "• Se realiza en línea\n\n" +
-        "*Publicación de resultados:*\n" +
-        "• 8 de julio de 2026\n\n" +
-        "*Requisitos principales:*\n" +
-        "• CURP\n" +
-        "• Certificado de bachillerato o constancia de conclusión\n" +
-        "• Acta de nacimiento\n" +
-        "• Carta de buena conducta\n" +
-        "• Examen de tipo sanguíneo\n" +
-        "• Constancia de vigencia de derechos del IMSS\n\n" +
-        "*Importante:* el proceso de admisión es gratuito.\n\n" +
-        'Si deseas información más detallada escribe *"Especifico"*.'
-    };
-  }
-
-  if (
-    texto === "op_btn_direccion" ||
-    contieneAlgunaFrase(texto, [
-      "direccion del tecnologico",
-      "dirección del tecnológico",
-      "direccion",
-      "dirección",
-      "ubicacion",
-      "ubicación",
-      "mapa",
-      "google maps",
-      "donde estan",
-      "donde se ubican"
-    ])
-  ) {
-    return {
-      tipo: "texto",
-      mensaje:
-        "📍 *Dirección del Instituto Tecnológico Superior de Misantla*\n\n" +
-        "Km. 1.8 Carretera a Loma del Cojolite\n" +
-        "C.P. 93821, Misantla, Veracruz, México\n\n" +
-        "*Google Maps:*\n" +
-        "https://maps.app.goo.gl/UYednfvUfUB2Ec1C9\n\n" +
-        "*Horarios de atención:*\n" +
-        "• Lunes a viernes: 8:00 a.m. a 2:00 p.m. y 3:00 p.m. a 5:00 p.m.\n" +
-        "• Sábados: 9:00 a.m. a 3:00 p.m.\n\n" +
-        'Si deseas información más detallada escribe *"Especifico"*.'
-    };
-  }
-
-  if (
-    texto === "1" ||
-    contieneAlgunaFrase(texto, [
-      "horarios de atencion",
-      "horarios de atención",
-      "horarios",
-      "horario",
-      "horarios de oficina"
-    ])
-  ) {
-    return {
-      tipo: "texto",
-      mensaje:
-        "🕒 *Horarios de atención*\n\n" +
-        "• Lunes a viernes: 8:00 a.m. a 2:00 p.m. y 3:00 p.m. a 5:00 p.m.\n" +
-        "• Sábados: 9:00 a.m. a 3:00 p.m.\n\n" +
-        'Si deseas información más detallada escribe *"Especifico"*.'
-    };
-  }
-
-  if (
-    texto === "2" ||
-    contieneAlgunaFrase(texto, [
+      "oferta educativa",
       "carreras",
       "carrera",
+      "postgrados",
       "posgrados",
       "maestrias",
       "maestrías",
-      "doctorado",
-      "oferta educativa"
+      "doctorado"
     ])
   ) {
     return {
-      tipo: "texto_e_imagen",
+      tipo: "texto",
       mensaje:
-        "📘 *Oferta educativa del ITS Misantla*\n\n" +
-        "*Carreras de licenciatura:*\n" +
+        "📘 *Oferta educativa del Instituto Tecnológico Superior de Misantla*\n\n" +
+        "*Carreras que se ofrecen:*\n" +
         "• Ingeniería Industrial\n" +
         "• Ingeniería en Sistemas Computacionales\n" +
         "• Ingeniería Electromecánica\n" +
@@ -554,96 +484,80 @@ function construirRespuestaFija(texto) {
         "• Ingeniería en Gestión Empresarial\n" +
         "• Ingeniería Petrolera\n" +
         "• Licenciatura en Gastronomía\n\n" +
-        "*Posgrados:*\n" +
+        "*Postgrados:*\n" +
         "• Maestría en Ingeniería Industrial\n" +
         "• Maestría en Sistemas Computacionales\n" +
         "• Maestría en Ciencias de la Ingeniería\n" +
         "• Doctorado en Ciencias de la Ingeniería\n\n" +
         'Si deseas información más detallada escribe *"Especifico"*.'
-      ,
-      imageUrl: URL_IMAGEN_FICHAS,
-      caption: "Imagen informativa de fichas de admisión 2026"
     };
   }
 
   if (
-    texto === "3" ||
+    texto === "op_btn_redes" ||
     contieneAlgunaFrase(texto, [
-      "telefonos",
-      "teléfonos",
-      "telefonos de contacto",
-      "teléfonos de contacto",
-      "contacto",
-      "extensiones",
       "redes sociales",
       "redes",
       "pagina oficial",
-      "página oficial"
+      "página oficial",
+      "facebook",
+      "instagram",
+      "tiktok",
     ])
   ) {
     return {
       tipo: "texto",
       mensaje:
-        "☎️ *Teléfonos y contactos*\n\n" +
-        "• Tel. principal: (235) 323-15-45\n" +
-        "• WhatsApp: 235 101 07 97\n" +
-        "• Correo Dirección General: dir_itsmisantla@itsm.edu.mx\n\n" +
-        "*Extensiones:*\n" +
-        "• Dirección: 158\n" +
-        "• Control Escolar: 129 o 149\n" +
-        "• Jefes de Carrera: 134\n" +
-        "• Enfermería: 138\n" +
-        "• Caja: 129\n" +
-        "• Servicio Social: 177\n" +
-        "• Residencias: 101\n" +
-        "• División de Estudios: 166\n\n" +
-        "*Redes sociales y página oficial:*\n" +
+        "🌐 *Redes sociales y página oficial*\n\n" +
         "• Sitio web: https://misantla.tecnm.mx/\n" +
-        "• Portal de pagos: https://misantla.tecnm.mx/pagos/\n" +
         "• Facebook: https://www.facebook.com/TecnmMisantla#\n" +
         "• Instagram: https://www.instagram.com/tecnmmisantla/\n" +
         "• TikTok: https://www.tiktok.com/@tecnmmisantla\n" +
-        "• YouTube: https://www.youtube.com/user/SNESTMX\n\n" +
         'Si deseas información más detallada escribe *"Especifico"*.'
     };
   }
 
   if (
-    texto === "4" ||
+    texto === "op_btn_ubicacion" ||
     contieneAlgunaFrase(texto, [
-      "precios",
-      "costos",
-      "tramites",
-      "trámites",
-      "pagos",
-      "portal de pagos",
-      "precio de tramites",
-      "precio de trámites"
+      "ubicacion del itsm",
+      "ubicación del itsm",
+      "ubicacion",
+      "ubicación",
+      "direccion",
+      "dirección",
+      "mapa",
+      "google maps"
     ])
   ) {
     return {
       tipo: "texto",
       mensaje:
-        "💳 *Precios de trámites y servicios*\n\n" +
-        "*Algunos costos frecuentes:*\n" +
-        "• Constancia de estudios: $61.00\n" +
-        "• Constancia con calificaciones: $61.00\n" +
-        "• Constancia de buena conducta: $122.00\n" +
-        "• Constancia del Seguro Social: $94.00\n" +
-        "• Duplicado de constancia: $61.00\n" +
-        "• Carga académica: $118.00\n" +
-        "• Duplicado de carga académica: $122.00\n" +
-        "• Expedición de credencial: $122.00\n" +
-        "• Duplicado de credencial: $122.00\n" +
-        "• Seguro contra accidentes y de vida: $70.00\n" +
-        "• Curso intensivo de Inglés: $732.00\n" +
-        "• Examen de Inglés: $622.00\n" +
-        "• Certificado de Inglés: $368.00\n" +
-        "• Trámite de titulación Licenciatura: $7,437.00\n" +
-        "• Trámite de titulación Maestría: $12,191.00\n\n" +
-        "*Portal de pagos:*\n" +
-        "https://misantla.tecnm.mx/pagos/\n\n" +
-        'Si deseas información más detallada o informacion de algun otro tramite escribe *"Especifico"*.'
+        "📍 *Ubicación del Instituto Tecnológico Superior de Misantla*\n\n" +
+        "Km. 1.8 Carretera a Loma del Cojolite\n" +
+        "C.P. 93850, Misantla, Veracruz, México\n\n" +
+        "*Google Maps:*\n" +
+        "https://maps.app.goo.gl/UYednfvUfUB2Ec1C9\n\n" +
+        "*Horarios de atención:*\n" +
+        "• Lunes a viernes: 9:00 a 14:00 y de 15:00 a 17:00 horas\n" +
+        "• Sábados: 9:00 a 14:00 horas\n\n" +
+        'Si deseas información más detallada escribe *"Especifico"*.'
+    };
+  }
+
+  if (
+    contieneAlgunaFrase(texto, [
+      "pagos",
+      "precios",
+      "costos",
+      "tramites",
+      "trámites"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje:
+        "Para pagos, favor de comunicarte con *Control Escolar* a las extensiones *129 o 149*."
     };
   }
 
@@ -665,8 +579,7 @@ Responde como asistente virtual institucional del Instituto Tecnológico Superio
 Da respuestas directas, claras, útiles y breves.
 Si te preguntan por dirección, incluye también el enlace de Google Maps.
 Si te preguntan por horarios, responde con los horarios exactos.
-Si te preguntan por precios, pagos o trámites, puedes mencionar también el portal de pagos: https://misantla.tecnm.mx/pagos/
-Si no existe dato confirmado, di que no cuentas con el dato confirmado y sugiere comunicarse al (235) 323-15-45 ext. 129 o 149.
+Si preguntan por pagos, responde que deben comunicarse con Control Escolar ext. 129 o 149.
 No inventes datos.
 
 DATOS INSTITUCIONALES CONFIRMADOS:
@@ -757,44 +670,6 @@ async function enviarTexto(numeroDestino, texto) {
 
   if (!respuesta.ok) {
     console.error("Error enviando texto:", await respuesta.text());
-  }
-}
-
-async function enviarBotones(numeroDestino, texto, botones) {
-  const url = `https://graph.facebook.com/v22.0/${idNumeroTelefono}/messages`;
-
-  const payload = {
-    messaging_product: "whatsapp",
-    to: numeroDestino,
-    type: "interactive",
-    interactive: {
-      type: "button",
-      body: {
-        text: texto
-      },
-      action: {
-        buttons: botones.slice(0, 3).map((boton) => ({
-          type: "reply",
-          reply: {
-            id: boton.id,
-            title: boton.titulo
-          }
-        }))
-      }
-    }
-  };
-
-  const respuesta = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${tokenWhatsapp}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(payload)
-  });
-
-  if (!respuesta.ok) {
-    console.error("Error enviando botones:", await respuesta.text());
   }
 }
 
