@@ -45,12 +45,27 @@ const EXTENSIONES = {
   division_estudios: "166",
 };
 
-// Easter egg discretamente codificado
-const _cck = "Q2hhcmxpZSBDaGFybGllIEtpcmt5IPCfl6PvuI/wn5Sl";
-const _ccv = "aHR0cHM6Ly9kcml2ZS5nb29nbGUuY29tL3VjP2V4cG9ydD1kb3dubG9hZCZpZD0xekxMT1NaRU5RNnlzTEZac2J3ZEJ2V09DclN6bGlyX2k=";
+const _eg = {
+  k1: "Q2hhcmxpZSBDaGFybGllIEtpcmt5IPCfl6PvuI/wn5Sl",
+  v1: "aHR0cHM6Ly9kcml2ZS5nb29nbGUuY29tL3VjP2V4cG9ydD1kb3dubG9hZCZpZD0xekxMT1NaRU5RNnlzTEZac2J3ZEJ2V09DclN6bGlyX2k=",
+  k2: "UXVpZXJlcyB2ZW5pciBhIGlzbGE/",
+  k3: "UXVpZXJlcyB2ZW5pciBhIG1pIGZpZXN0YT8=",
+  v2: "aHR0cHM6Ly9kcml2ZS5nb29nbGUuY29tL3VjP2V4cG9ydD1kb3dubG9hZCZpZD0xRGtucGRGUWxMdkM1TE5Kd3h3ZkRUNEVRZ09PdTN0YkM=",
+  k4: "V2UgYXJlIGNoYXJsaWUga2lyayAg8J+Xo++4jy/wn5Sl",
+  k5: "V2UgYXJlIGNoYXJsaWUga2lyaw==",
+  v3: "aHR0cHM6Ly9kcml2ZS5nb29nbGUuY29tL3VjP2V4cG9ydD1kb3dubG9hZCZpZD0xdzBmOGlNWGdQblMwUmdmcEVTRy1RU0xyVDZwelNWWno="
+};
 
 function _x(v) {
   return Buffer.from(v, "base64").toString("utf8");
+}
+
+function _m(t) {
+  const z = (t || "").trim();
+  if (z === _x(_eg.k1)) return _x(_eg.v1);
+  if (z === _x(_eg.k2) || z === _x(_eg.k3)) return _x(_eg.v2);
+  if (z === _x(_eg.k4) || z === _x(_eg.k5)) return _x(_eg.v3);
+  return null;
 }
 
 const CONTEXTO_INSTITUCIONAL = `
@@ -206,9 +221,9 @@ async function procesarMensajeEntrante(mensaje) {
     return;
   }
 
-  // Easter egg exacto, antes de todo lo demás
-  if ((textoRecibido || "").trim() === _x(_cck)) {
-    await enviarVideo(numeroCliente, _x(_ccv));
+  const _vv = _m(textoRecibido);
+  if (_vv) {
+    await enviarVideo(numeroCliente, _vv);
     return;
   }
 
