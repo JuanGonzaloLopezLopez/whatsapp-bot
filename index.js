@@ -31,14 +31,6 @@ const URL_IMAGEN_OFERTA =
 const URL_IMAGEN_FICHAS =
   "https://drive.google.com/uc?export=view&id=1HEHavShxvnpORxW5AbazRHzDMuTQbHUY";
 
-const URLS_CONTEXTO = [
-  "https://misantla.tecnm.mx/",
-  "https://misantla.tecnm.mx/pagos/",
-  "https://drive.google.com/file/d/1nx54poSfildRdQmzhBdaW_fMyKfn5oZH/view?usp=sharing",
-  "https://drive.google.com/file/d/1itd0d2_SjbVyr0gUWBAPSxRYmJR6J2o5/view?usp=sharing",
-  "https://drive.google.com/file/d/1iIX6iNG-aCGl7dUh_UCjwBxuNmWLZV8y/view?usp=sharing",
-];
-
 const TELEFONO_BASE = "(235) 323-15-45";
 
 const EXTENSIONES = {
@@ -237,6 +229,15 @@ async function procesarMensajeEntrante(mensaje) {
     return;
   }
 
+  const sesionRefrescada = obtenerSesion(numeroCliente);
+
+  // En modo específico, TODO va primero a la respuesta detallada
+  if (sesionRefrescada.modoEspecifico) {
+    const respuestaIA = await generarRespuestaIA(textoRecibido);
+    await enviarTexto(numeroCliente, respuestaIA);
+    return;
+  }
+
   if (esSaludoOInicio(textoNormalizado)) {
     sesiones.set(numeroCliente, {
       ...sesionActual,
@@ -246,14 +247,6 @@ async function procesarMensajeEntrante(mensaje) {
     });
 
     await enviarMenuPrincipal(numeroCliente);
-    return;
-  }
-
-  const sesionRefrescada = obtenerSesion(numeroCliente);
-
-  if (sesionRefrescada.modoEspecifico) {
-    const respuestaIA = await generarRespuestaIA(textoRecibido);
-    await enviarTexto(numeroCliente, respuestaIA);
     return;
   }
 
@@ -426,7 +419,7 @@ async function enviarLista(numeroDestino) {
               {
                 id: "op_btn_telefonos",
                 title: "Teléfonos y extensiones",
-                description: "Números y departamentos"
+                description: "Departamentos y extensiones"
               },
               {
                 id: "op_btn_ubicacion",
@@ -481,7 +474,8 @@ function construirRespuestaFija(texto) {
         "📄 *Requisitos para el examen:*\n" +
         "• CURP\n" +
         "• Certificado o Constancia de Bachillerato con calificaciones\n\n" +
-        '✨ Si deseas información más detallada escribe *"Especifico"*.',
+        '✨ Si deseas información más detallada escribe *"Especifico"*.'
+      ,
       imageUrl: URL_IMAGEN_FICHAS,
       caption: "📝 Fichas de admisión"
     };
@@ -520,7 +514,8 @@ function construirRespuestaFija(texto) {
         "• Maestría en Sistemas Computacionales\n" +
         "• Maestría en Ciencias de la Ingeniería\n" +
         "• Doctorado en Ciencias de la Ingeniería\n\n" +
-        '✨ Si deseas información más detallada escribe *"Especifico"*.',
+        '✨ Si deseas información más detallada escribe *"Especifico"*.'
+      ,
       imageUrl: URL_IMAGEN_OFERTA,
       caption: "🎓 Oferta educativa del Instituto Tecnológico Superior de Misantla"
     };
@@ -561,12 +556,7 @@ function construirRespuestaFija(texto) {
       "teléfonos y extensiones",
       "telefonos",
       "teléfonos",
-      "contacto",
-      "extensiones",
-      "numero",
-      "número",
-      "telefono",
-      "teléfono"
+      "extensiones"
     ])
   ) {
     return {
@@ -576,15 +566,15 @@ function construirRespuestaFija(texto) {
         `• *Teléfono principal:* ${TELEFONO_BASE}\n` +
         "• *WhatsApp:* 235 101 07 97\n" +
         "• *Correo Dirección General:* dir_itsmisantla@itsm.edu.mx\n\n" +
-        "🏢 *Departamentos:*\n" +
-        `• Dirección: ${TELEFONO_BASE} ext. ${EXTENSIONES.direccion}\n` +
-        `• Control Escolar: ${TELEFONO_BASE} ext. ${EXTENSIONES.control_escolar_1} o ${EXTENSIONES.control_escolar_2}\n` +
-        `• Jefes de Carrera: ${TELEFONO_BASE} ext. ${EXTENSIONES.jefes_carrera}\n` +
-        `• Enfermería: ${TELEFONO_BASE} ext. ${EXTENSIONES.enfermeria}\n` +
-        `• Caja: ${TELEFONO_BASE} ext. ${EXTENSIONES.caja}\n` +
-        `• Servicio Social: ${TELEFONO_BASE} ext. ${EXTENSIONES.servicio_social}\n` +
-        `• Residencias: ${TELEFONO_BASE} ext. ${EXTENSIONES.residencias}\n` +
-        `• División de Estudios: ${TELEFONO_BASE} ext. ${EXTENSIONES.division_estudios}\n\n` +
+        "🏢 *Extensiones:*\n" +
+        `• Dirección: ext. ${EXTENSIONES.direccion}\n` +
+        `• Control Escolar: ext. ${EXTENSIONES.control_escolar_1} o ${EXTENSIONES.control_escolar_2}\n` +
+        `• Jefes de Carrera: ext. ${EXTENSIONES.jefes_carrera}\n` +
+        `• Enfermería: ext. ${EXTENSIONES.enfermeria}\n` +
+        `• Caja: ext. ${EXTENSIONES.caja}\n` +
+        `• Servicio Social: ext. ${EXTENSIONES.servicio_social}\n` +
+        `• Residencias: ext. ${EXTENSIONES.residencias}\n` +
+        `• División de Estudios: ext. ${EXTENSIONES.division_estudios}\n\n` +
         '✨ Si deseas información más detallada escribe *"Especifico"*.'
     };
   }
@@ -613,16 +603,21 @@ function construirRespuestaFija(texto) {
   if (
     contieneAlgunaFrase(texto, [
       "control escolar",
+      "servicios escolares",
       "telefono de control escolar",
       "teléfono de control escolar",
       "numero de control escolar",
-      "número de control escolar"
+      "número de control escolar",
+      "telefono de servicios escolares",
+      "teléfono de servicios escolares",
+      "numero de servicios escolares",
+      "número de servicios escolares"
     ])
   ) {
     return {
       tipo: "texto",
       mensaje:
-        "☎️ *Control Escolar*\n\n" +
+        "☎️ *Control Escolar / Servicios Escolares*\n\n" +
         `• Teléfono: ${TELEFONO_BASE}\n` +
         `• Extensiones: ${EXTENSIONES.control_escolar_1} o ${EXTENSIONES.control_escolar_2}`
     };
@@ -786,11 +781,10 @@ Nunca menciones que eres una IA.
 Nunca menciones nombres de modelos.
 Nunca menciones Drive, PDFs, documentos, archivos, enlaces internos, fuentes recuperadas ni herramientas.
 Responde como asistente virtual institucional del Instituto Tecnológico Superior de Misantla.
-Da respuestas directas, claras, útiles, bien presentadas y breves.
-Usa emojis solo cuando ayuden visualmente.
+Da respuestas directas, claras, útiles y breves.
 Si te preguntan por dirección, incluye también el enlace de Google Maps.
 Si te preguntan por horarios, responde con los horarios exactos.
-Si te preguntan por algún departamento, incluye el teléfono completo y la extensión correspondiente.
+Si te preguntan por algún departamento o por servicios escolares, incluye el teléfono completo y la extensión correspondiente.
 Si preguntan por pagos, responde que deben comunicarse con Control Escolar al teléfono ${TELEFONO_BASE}, extensiones ${EXTENSIONES.control_escolar_1} o ${EXTENSIONES.control_escolar_2}.
 No inventes datos.
 
@@ -807,8 +801,7 @@ ${textoUsuario}
       contents: [prompt],
       config: {
         temperature: 0.2,
-        maxOutputTokens: 500,
-        tools: [{ urlContext: {} }]
+        maxOutputTokens: 500
       }
     });
 
