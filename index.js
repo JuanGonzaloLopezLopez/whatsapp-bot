@@ -25,9 +25,11 @@ const geminiApiKey = process.env.GEMINI_API_KEY || "";
 const sesiones = new Map();
 const ai = geminiApiKey ? new GoogleGenAI({ apiKey: geminiApiKey }) : null;
 
-// Imagen solo para oferta educativa
 const URL_IMAGEN_OFERTA =
   "https://drive.google.com/uc?export=view&id=1-qvuauPg0j_IrR0Z22qJXIdwZUgTlBBy";
+
+const URL_IMAGEN_FICHAS =
+  "https://drive.google.com/uc?export=view&id=1HEHavShxvnpORxW5AbazRHzDMuTQbHUY";
 
 const URLS_CONTEXTO = [
   "https://misantla.tecnm.mx/",
@@ -466,7 +468,7 @@ function construirRespuestaFija(texto) {
     ])
   ) {
     return {
-      tipo: "texto",
+      tipo: "texto_e_imagen",
       mensaje:
         "📝 *Fichas de admisión*\n\n" +
         "✅ *El proceso de admisión es gratuito.*\n" +
@@ -479,7 +481,9 @@ function construirRespuestaFija(texto) {
         "📄 *Requisitos para el examen:*\n" +
         "• CURP\n" +
         "• Certificado o Constancia de Bachillerato con calificaciones\n\n" +
-        '✨ Si deseas información más detallada escribe *"Especifico"*.'
+        '✨ Si deseas información más detallada escribe *"Especifico"*.',
+      imageUrl: URL_IMAGEN_FICHAS,
+      caption: "📝 Fichas de admisión"
     };
   }
 
@@ -499,7 +503,7 @@ function construirRespuestaFija(texto) {
     return {
       tipo: "texto_e_imagen",
       mensaje:
-        "🎓 *Oferta educativa del ITS Misantla*\n\n" +
+        "🎓 *Oferta educativa del Instituto Tecnológico Superior de Misantla*\n\n" +
         "📚 *Carreras que se ofrecen:*\n" +
         "• Ingeniería Industrial\n" +
         "• Ingeniería en Sistemas Computacionales\n" +
@@ -518,7 +522,7 @@ function construirRespuestaFija(texto) {
         "• Doctorado en Ciencias de la Ingeniería\n\n" +
         '✨ Si deseas información más detallada escribe *"Especifico"*.',
       imageUrl: URL_IMAGEN_OFERTA,
-      caption: "🎓 Oferta educativa del ITS Misantla"
+      caption: "🎓 Oferta educativa del Instituto Tecnológico Superior de Misantla"
     };
   }
 
