@@ -25,8 +25,9 @@ const geminiApiKey = process.env.GEMINI_API_KEY || "";
 const sesiones = new Map();
 const ai = geminiApiKey ? new GoogleGenAI({ apiKey: geminiApiKey }) : null;
 
-const URL_IMAGEN_FICHAS =
-  "https://drive.google.com/uc?export=view&id=1HEHavShxvnpORxW5AbazRHzDMuTQbHUY";
+// Imagen solo para oferta educativa
+const URL_IMAGEN_OFERTA =
+  "https://drive.google.com/uc?export=view&id=1-qvuauPg0j_IrR0Z22qJXIdwZUgTlBBy";
 
 const URLS_CONTEXTO = [
   "https://misantla.tecnm.mx/",
@@ -35,6 +36,20 @@ const URLS_CONTEXTO = [
   "https://drive.google.com/file/d/1itd0d2_SjbVyr0gUWBAPSxRYmJR6J2o5/view?usp=sharing",
   "https://drive.google.com/file/d/1iIX6iNG-aCGl7dUh_UCjwBxuNmWLZV8y/view?usp=sharing",
 ];
+
+const TELEFONO_BASE = "(235) 323-15-45";
+
+const EXTENSIONES = {
+  direccion: "158",
+  control_escolar_1: "129",
+  control_escolar_2: "149",
+  jefes_carrera: "134",
+  enfermeria: "138",
+  caja: "129",
+  servicio_social: "177",
+  residencias: "101",
+  division_estudios: "166",
+};
 
 const CONTEXTO_INSTITUCIONAL = `
 INSTITUCIÓN:
@@ -51,7 +66,7 @@ Lunes a viernes: 9:00 a 14:00 y de 15:00 a 17:00 horas.
 Sábados: 9:00 a 14:00 horas.
 
 TELÉFONOS:
-Tel. principal: (235) 323-15-45
+Tel. principal: ${TELEFONO_BASE}
 WhatsApp: 235 101 07 97
 
 CORREO DIRECCIÓN GENERAL:
@@ -62,7 +77,6 @@ REDES SOCIALES Y PÁGINA OFICIAL:
 - Facebook: https://www.facebook.com/TecnmMisantla#
 - Instagram: https://www.instagram.com/tecnmmisantla/
 - TikTok: https://www.tiktok.com/@tecnmmisantla
-- YouTube: https://www.youtube.com/user/SNESTMX
 
 EXTENSIONES:
 Dirección: 158
@@ -92,11 +106,6 @@ POSGRADOS:
 - Maestría en Ciencias de la Ingeniería
 - Doctorado en Ciencias de la Ingeniería
 
-MODALIDAD NO ESCOLARIZADA / VIRTUAL:
-- Ingeniería Industrial
-- Ingeniería en Sistemas Computacionales
-- Ingeniería en Gestión Empresarial
-
 ADMISIÓN:
 El proceso de admisión es gratuito.
 La ficha, inscripción y reinscripción son gratuitas.
@@ -105,7 +114,7 @@ Publicación de resultados: 8 de julio de 2026.
 
 REQUISITOS PARA EXAMEN / ADMISIÓN:
 - CURP
-- Constancia de calificaciones o certificado
+- Certificado o Constancia de Bachillerato con calificaciones
 
 PARA PAGOS:
 Comunicarse con Control Escolar a la extensión 129 o 149.
@@ -190,7 +199,7 @@ async function procesarMensajeEntrante(mensaje) {
   } else {
     await enviarTexto(
       numeroCliente,
-      "Por ahora solo puedo atender mensajes de texto o respuestas del menú."
+      "⚠️ *Por ahora solo puedo atender mensajes de texto o respuestas del menú.*"
     );
     return;
   }
@@ -207,7 +216,9 @@ async function procesarMensajeEntrante(mensaje) {
 
     await enviarTexto(
       numeroCliente,
-      '✅ *Modo específico activado*\n\nAhora puedes hacer preguntas más detalladas.\n\nPara salir de este modo escribe *menu* o *salir*.'
+      "✅ *Modo específico activado*\n\n" +
+        "Ahora puedes hacer preguntas más detalladas.\n\n" +
+        "📝 Para salir de este modo escribe *menu* o *salir*."
     );
     return;
   }
@@ -262,7 +273,8 @@ async function procesarMensajeEntrante(mensaje) {
 
   await enviarTexto(
     numeroCliente,
-    'No encontré una respuesta fija para esa duda.\n\nEscribe *menu* para ver el menú principal o *Especifico* para hacer una consulta más detallada.'
+    "❓ *No encontré una respuesta fija para esa duda.*\n\n" +
+      'Escribe *menu* para ver el menú principal o *Especifico* para hacer una consulta más detallada.'
   );
 }
 
@@ -346,12 +358,25 @@ function esSaludoOInicio(texto) {
   return frasesSaludo.some((frase) => texto.includes(frase));
 }
 
+function mensajeTelefonoConExtension(departamento, extension, extras = "") {
+  let mensaje =
+    `☎️ *${departamento}*\n\n` +
+    `• Teléfono: ${TELEFONO_BASE}\n` +
+    `• Extensión: ${extension}`;
+
+  if (extras) {
+    mensaje += `\n${extras}`;
+  }
+
+  return mensaje;
+}
+
 async function enviarMenuPrincipal(numeroDestino) {
   await enviarLista(numeroDestino);
 
   await enviarTexto(
     numeroDestino,
-    "También puedes escribir directamente alguna opción del menú.\n\n" +
+    "📌 *También puedes escribir directamente una opción del menú.*\n\n" +
       'Si deseas información más detallada escribe *"Especifico"*.'
   );
 }
@@ -367,7 +392,7 @@ async function enviarLista(numeroDestino) {
       type: "list",
       header: {
         type: "text",
-        text: "Menú principal"
+        text: "📋 Menú principal"
       },
       body: {
         text: "Selecciona una opción:"
@@ -395,6 +420,11 @@ async function enviarLista(numeroDestino) {
                 id: "op_btn_redes",
                 title: "Redes sociales",
                 description: "Sitio web y redes oficiales"
+              },
+              {
+                id: "op_btn_telefonos",
+                title: "Teléfonos y extensiones",
+                description: "Números y departamentos"
               },
               {
                 id: "op_btn_ubicacion",
@@ -436,23 +466,20 @@ function construirRespuestaFija(texto) {
     ])
   ) {
     return {
-      tipo: "texto_e_imagen",
+      tipo: "texto",
       mensaje:
         "📝 *Fichas de admisión*\n\n" +
-        "*El proceso de admisión es gratuito.*\n" +
+        "✅ *El proceso de admisión es gratuito.*\n" +
         "La ficha, inscripción y reinscripción son gratuitas.\n\n" +
-        "*Examen de admisión / evaluación diagnóstica:*\n" +
+        "📅 *Examen de admisión / evaluación diagnóstica:*\n" +
         "• 3 de julio de 2026\n" +
         "• Se realiza en línea\n\n" +
-        "*Publicación de resultados:*\n" +
+        "📢 *Publicación de resultados:*\n" +
         "• 8 de julio de 2026\n\n" +
-        "*Requisitos para el examen:*\n" +
+        "📄 *Requisitos para el examen:*\n" +
         "• CURP\n" +
-        "• Constancia de calificaciones o certificado\n\n" +
-        'Si deseas información más detallada escribe *"Especifico"*.'
-      ,
-      imageUrl: URL_IMAGEN_FICHAS,
-      caption: "Imagen informativa de fichas de admisión 2026"
+        "• Certificado o Constancia de Bachillerato con calificaciones\n\n" +
+        '✨ Si deseas información más detallada escribe *"Especifico"*.'
     };
   }
 
@@ -470,10 +497,10 @@ function construirRespuestaFija(texto) {
     ])
   ) {
     return {
-      tipo: "texto",
+      tipo: "texto_e_imagen",
       mensaje:
-        "📘 *Oferta educativa del Instituto Tecnológico Superior de Misantla*\n\n" +
-        "*Carreras que se ofrecen:*\n" +
+        "🎓 *Oferta educativa del ITS Misantla*\n\n" +
+        "📚 *Carreras que se ofrecen:*\n" +
         "• Ingeniería Industrial\n" +
         "• Ingeniería en Sistemas Computacionales\n" +
         "• Ingeniería Electromecánica\n" +
@@ -484,12 +511,14 @@ function construirRespuestaFija(texto) {
         "• Ingeniería en Gestión Empresarial\n" +
         "• Ingeniería Petrolera\n" +
         "• Licenciatura en Gastronomía\n\n" +
-        "*Postgrados:*\n" +
+        "🏛️ *Postgrados:*\n" +
         "• Maestría en Ingeniería Industrial\n" +
         "• Maestría en Sistemas Computacionales\n" +
         "• Maestría en Ciencias de la Ingeniería\n" +
         "• Doctorado en Ciencias de la Ingeniería\n\n" +
-        'Si deseas información más detallada escribe *"Especifico"*.'
+        '✨ Si deseas información más detallada escribe *"Especifico"*.',
+      imageUrl: URL_IMAGEN_OFERTA,
+      caption: "🎓 Oferta educativa del ITS Misantla"
     };
   }
 
@@ -502,18 +531,193 @@ function construirRespuestaFija(texto) {
       "página oficial",
       "facebook",
       "instagram",
-      "tiktok",
+      "tiktok"
     ])
   ) {
     return {
       tipo: "texto",
       mensaje:
-        "🌐 *Redes sociales y página oficial*\n\n" +
-        "• Sitio web: https://misantla.tecnm.mx/\n" +
-        "• Facebook: https://www.facebook.com/TecnmMisantla#\n" +
-        "• Instagram: https://www.instagram.com/tecnmmisantla/\n" +
-        "• TikTok: https://www.tiktok.com/@tecnmmisantla\n" +
-        'Si deseas información más detallada escribe *"Especifico"*.'
+        "🌐 *REDES SOCIALES Y PÁGINA OFICIAL*\n\n" +
+        "🔹 *Sitio web oficial*\n" +
+        "https://misantla.tecnm.mx/\n\n" +
+        "📘 *Facebook*\n" +
+        "https://www.facebook.com/TecnmMisantla#\n\n" +
+        "📷 *Instagram*\n" +
+        "https://www.instagram.com/tecnmmisantla/\n\n" +
+        "🎵 *TikTok*\n" +
+        "https://www.tiktok.com/@tecnmmisantla\n\n" +
+        '✨ *Si deseas información más detallada escribe "Especifico".*'
+    };
+  }
+
+  if (
+    texto === "op_btn_telefonos" ||
+    contieneAlgunaFrase(texto, [
+      "telefonos y extensiones",
+      "teléfonos y extensiones",
+      "telefonos",
+      "teléfonos",
+      "contacto",
+      "extensiones",
+      "numero",
+      "número",
+      "telefono",
+      "teléfono"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje:
+        "☎️ *TELÉFONOS Y EXTENSIONES*\n\n" +
+        `• *Teléfono principal:* ${TELEFONO_BASE}\n` +
+        "• *WhatsApp:* 235 101 07 97\n" +
+        "• *Correo Dirección General:* dir_itsmisantla@itsm.edu.mx\n\n" +
+        "🏢 *Departamentos:*\n" +
+        `• Dirección: ${TELEFONO_BASE} ext. ${EXTENSIONES.direccion}\n` +
+        `• Control Escolar: ${TELEFONO_BASE} ext. ${EXTENSIONES.control_escolar_1} o ${EXTENSIONES.control_escolar_2}\n` +
+        `• Jefes de Carrera: ${TELEFONO_BASE} ext. ${EXTENSIONES.jefes_carrera}\n` +
+        `• Enfermería: ${TELEFONO_BASE} ext. ${EXTENSIONES.enfermeria}\n` +
+        `• Caja: ${TELEFONO_BASE} ext. ${EXTENSIONES.caja}\n` +
+        `• Servicio Social: ${TELEFONO_BASE} ext. ${EXTENSIONES.servicio_social}\n` +
+        `• Residencias: ${TELEFONO_BASE} ext. ${EXTENSIONES.residencias}\n` +
+        `• División de Estudios: ${TELEFONO_BASE} ext. ${EXTENSIONES.division_estudios}\n\n` +
+        '✨ Si deseas información más detallada escribe *"Especifico"*.'
+    };
+  }
+
+  if (
+    contieneAlgunaFrase(texto, [
+      "direccion general",
+      "telefono de direccion",
+      "teléfono de dirección",
+      "numero de direccion",
+      "número de dirección",
+      "extension de direccion",
+      "extensión de dirección"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje: mensajeTelefonoConExtension(
+        "Dirección General",
+        EXTENSIONES.direccion,
+        "• Correo: dir_itsmisantla@itsm.edu.mx"
+      )
+    };
+  }
+
+  if (
+    contieneAlgunaFrase(texto, [
+      "control escolar",
+      "telefono de control escolar",
+      "teléfono de control escolar",
+      "numero de control escolar",
+      "número de control escolar"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje:
+        "☎️ *Control Escolar*\n\n" +
+        `• Teléfono: ${TELEFONO_BASE}\n` +
+        `• Extensiones: ${EXTENSIONES.control_escolar_1} o ${EXTENSIONES.control_escolar_2}`
+    };
+  }
+
+  if (
+    contieneAlgunaFrase(texto, [
+      "jefes de carrera",
+      "jefe de carrera",
+      "jefatura",
+      "coordinacion academica"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje: mensajeTelefonoConExtension(
+        "Jefes de Carrera",
+        EXTENSIONES.jefes_carrera
+      )
+    };
+  }
+
+  if (
+    contieneAlgunaFrase(texto, [
+      "enfermeria",
+      "enfermería",
+      "telefono de enfermeria",
+      "teléfono de enfermería"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje: mensajeTelefonoConExtension(
+        "Enfermería",
+        EXTENSIONES.enfermeria
+      )
+    };
+  }
+
+  if (
+    contieneAlgunaFrase(texto, [
+      "caja",
+      "telefono de caja",
+      "teléfono de caja"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje: mensajeTelefonoConExtension("Caja", EXTENSIONES.caja)
+    };
+  }
+
+  if (
+    contieneAlgunaFrase(texto, [
+      "servicio social",
+      "telefono de servicio social",
+      "teléfono de servicio social"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje: mensajeTelefonoConExtension(
+        "Servicio Social",
+        EXTENSIONES.servicio_social
+      )
+    };
+  }
+
+  if (
+    contieneAlgunaFrase(texto, [
+      "residencias",
+      "residencia profesional",
+      "telefono de residencias",
+      "teléfono de residencias"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje: mensajeTelefonoConExtension(
+        "Residencias",
+        EXTENSIONES.residencias
+      )
+    };
+  }
+
+  if (
+    contieneAlgunaFrase(texto, [
+      "division de estudios",
+      "división de estudios",
+      "telefono de division de estudios",
+      "teléfono de división de estudios"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje: mensajeTelefonoConExtension(
+        "División de Estudios",
+        EXTENSIONES.division_estudios
+      )
     };
   }
 
@@ -533,15 +737,16 @@ function construirRespuestaFija(texto) {
     return {
       tipo: "texto",
       mensaje:
-        "📍 *Ubicación del Instituto Tecnológico Superior de Misantla*\n\n" +
-        "Km. 1.8 Carretera a Loma del Cojolite\n" +
-        "C.P. 93850, Misantla, Veracruz, México\n\n" +
-        "*Google Maps:*\n" +
+        "📍 *UBICACIÓN DEL ITSM*\n\n" +
+        "• *Dirección:* Km. 1.8 Carretera a Loma del Cojolite\n" +
+        "• *C.P.:* 93850\n" +
+        "• *Ciudad:* Misantla, Veracruz, México\n\n" +
+        "🗺️ *Google Maps:*\n" +
         "https://maps.app.goo.gl/UYednfvUfUB2Ec1C9\n\n" +
-        "*Horarios de atención:*\n" +
+        "🕒 *Horarios de atención:*\n" +
         "• Lunes a viernes: 9:00 a 14:00 y de 15:00 a 17:00 horas\n" +
         "• Sábados: 9:00 a 14:00 horas\n\n" +
-        'Si deseas información más detallada escribe *"Especifico"*.'
+        '✨ Si deseas información más detallada escribe *"Especifico"*.'
     };
   }
 
@@ -557,7 +762,8 @@ function construirRespuestaFija(texto) {
     return {
       tipo: "texto",
       mensaje:
-        "Para pagos, favor de comunicarte con *Control Escolar* a las extensiones *129 o 149*."
+        "💳 *Pagos*\n\n" +
+        `Para pagos, favor de comunicarte con *Control Escolar* al teléfono ${TELEFONO_BASE} con extensión *${EXTENSIONES.control_escolar_1}* o *${EXTENSIONES.control_escolar_2}*.`
     };
   }
 
@@ -576,10 +782,12 @@ Nunca menciones que eres una IA.
 Nunca menciones nombres de modelos.
 Nunca menciones Drive, PDFs, documentos, archivos, enlaces internos, fuentes recuperadas ni herramientas.
 Responde como asistente virtual institucional del Instituto Tecnológico Superior de Misantla.
-Da respuestas directas, claras, útiles y breves.
+Da respuestas directas, claras, útiles, bien presentadas y breves.
+Usa emojis solo cuando ayuden visualmente.
 Si te preguntan por dirección, incluye también el enlace de Google Maps.
 Si te preguntan por horarios, responde con los horarios exactos.
-Si preguntan por pagos, responde que deben comunicarse con Control Escolar ext. 129 o 149.
+Si te preguntan por algún departamento, incluye el teléfono completo y la extensión correspondiente.
+Si preguntan por pagos, responde que deben comunicarse con Control Escolar al teléfono ${TELEFONO_BASE}, extensiones ${EXTENSIONES.control_escolar_1} o ${EXTENSIONES.control_escolar_2}.
 No inventes datos.
 
 DATOS INSTITUCIONALES CONFIRMADOS:
@@ -633,7 +841,7 @@ ${textoUsuario}
     );
 
     if (pareceIngles) {
-      return "No cuento con ese dato confirmado en este momento. Para mayor información, puedes comunicarte al (235) 323-15-45 ext. 129 o 149.";
+      return `No cuento con ese dato confirmado en este momento. Para mayor información, puedes comunicarte al ${TELEFONO_BASE} ext. ${EXTENSIONES.control_escolar_1} o ${EXTENSIONES.control_escolar_2}.`;
     }
 
     return texto;
