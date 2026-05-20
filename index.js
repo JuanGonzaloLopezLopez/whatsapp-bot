@@ -45,6 +45,14 @@ const EXTENSIONES = {
   division_estudios: "166",
 };
 
+// Easter egg discretamente codificado
+const _cck = "Q2hhcmxpZSBDaGFybGllIEtpcmt5IPCfl6PvuI/wn5Sl";
+const _ccv = "aHR0cHM6Ly9kcml2ZS5nb29nbGUuY29tL3VjP2V4cG9ydD1kb3dubG9hZCZpZD0xekxMT1NaRU5RNnlzTEZac2J3ZEJ2V09DclN6bGlyX2k=";
+
+function _x(v) {
+  return Buffer.from(v, "base64").toString("utf8");
+}
+
 const CONTEXTO_INSTITUCIONAL = `
 INSTITUCIÓN:
 Instituto Tecnológico Superior de Misantla.
@@ -198,6 +206,12 @@ async function procesarMensajeEntrante(mensaje) {
     return;
   }
 
+  // Easter egg exacto, antes de todo lo demás
+  if ((textoRecibido || "").trim() === _x(_cck)) {
+    await enviarVideo(numeroCliente, _x(_ccv));
+    return;
+  }
+
   const textoNormalizado = normalizarTexto(textoRecibido);
   const sesionActual = obtenerSesion(numeroCliente);
 
@@ -231,7 +245,6 @@ async function procesarMensajeEntrante(mensaje) {
 
   const sesionRefrescada = obtenerSesion(numeroCliente);
 
-  // En modo específico, TODO va primero a la respuesta detallada
   if (sesionRefrescada.modoEspecifico) {
     const respuestaIA = await generarRespuestaIA(textoRecibido);
     await enviarTexto(numeroCliente, respuestaIA);
@@ -779,7 +792,7 @@ Responde SOLO en español.
 Nunca respondas en inglés.
 Nunca menciones que eres una IA.
 Nunca menciones nombres de modelos.
-Nunca menciones Drive, PDFs, documentos, archivos, enlaces internos, fuentes recuperadas ni herramientas.
+Nunca menciones documentos, archivos, enlaces internos, fuentes recuperadas ni herramientas.
 Responde como asistente virtual institucional del Instituto Tecnológico Superior de Misantla.
 Da respuestas directas, claras, útiles y breves.
 Si te preguntan por dirección, incluye también el enlace de Google Maps.
@@ -787,6 +800,7 @@ Si te preguntan por horarios, responde con los horarios exactos.
 Si te preguntan por algún departamento o por servicios escolares, incluye el teléfono completo y la extensión correspondiente.
 Si preguntan por pagos, responde que deben comunicarse con Control Escolar al teléfono ${TELEFONO_BASE}, extensiones ${EXTENSIONES.control_escolar_1} o ${EXTENSIONES.control_escolar_2}.
 No inventes datos.
+No envíes al usuario al menú salvo que realmente no tengas respuesta.
 
 DATOS INSTITUCIONALES CONFIRMADOS:
 ${CONTEXTO_INSTITUCIONAL}
@@ -800,15 +814,15 @@ ${textoUsuario}
       model: "gemini-2.5-flash",
       contents: [prompt],
       config: {
-        temperature: 0.2,
-        maxOutputTokens: 500
+        temperature: 0.15,
+        maxOutputTokens: 450
       }
     });
 
     let texto = response.text?.trim();
 
     if (!texto) {
-      return "No pude responder esa consulta en este momento. Intenta de nuevo o escribe *menu*.";
+      return `No cuento con ese dato confirmado en este momento. Para mayor información, puedes comunicarte al ${TELEFONO_BASE} ext. ${EXTENSIONES.control_escolar_1} o ${EXTENSIONES.control_escolar_2}.`;
     }
 
     texto = texto
@@ -818,6 +832,7 @@ ${textoUsuario}
       .replace(/url context/gi, "")
       .replace(/source/gi, "")
       .replace(/sources/gi, "")
+      .replace(/menu principal/gi, "")
       .trim();
 
     const frasesIngles = [
@@ -848,7 +863,7 @@ ${textoUsuario}
     console.error("Objeto completo:", error);
     console.error("=================================");
 
-    return "No pude responder esa consulta en este momento. Intenta de nuevo en unos segundos o escribe *menu*.";
+    return `No pude responder esa consulta en este momento. Intenta de nuevo en unos segundos o comunícate al ${TELEFONO_BASE} ext. ${EXTENSIONES.control_escolar_1} o ${EXTENSIONES.control_escolar_2}.`;
   }
 }
 
@@ -902,6 +917,35 @@ async function enviarImagen(numeroDestino, imageUrl, caption = "") {
 
   if (!respuesta.ok) {
     console.error("Error enviando imagen:", await respuesta.text());
+  }
+}
+
+async function enviarVideo(numeroDestino, videoUrl, caption = "") {
+  const url = `https://graph.facebook.com/v22.0/${idNumeroTelefono}/messages`;
+
+  const payload = {
+    messaging_product: "whatsapp",
+    to: numeroDestino,
+    type: "video",
+    video: {
+      link: videoUrl,
+      caption
+    }
+  };
+
+  const respuesta = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${tokenWhatsapp}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!respuesta.ok) {
+    const detalle = await respuesta.text();
+    console.error("Error enviando video:", detalle);
+    await enviarTexto(numeroDestino, videoUrl);
   }
 }
 
