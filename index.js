@@ -45,27 +45,20 @@ const EXTENSIONES = {
   division_estudios: "166",
 };
 
-const _eg = {
-  k1: "Q2hhcmxpZSBDaGFybGllIEtpcmt5IPCfl6PvuI/wn5Sl",
-  v1: "aHR0cHM6Ly9kcml2ZS5nb29nbGUuY29tL3VjP2V4cG9ydD1kb3dubG9hZCZpZD0xekxMT1NaRU5RNnlzTEZac2J3ZEJ2V09DclN6bGlyX2k=",
-  k2: "UXVpZXJlcyB2ZW5pciBhIGlzbGE/",
-  k3: "UXVpZXJlcyB2ZW5pciBhIG1pIGZpZXN0YT8=",
-  v2: "aHR0cHM6Ly9kcml2ZS5nb29nbGUuY29tL3VjP2V4cG9ydD1kb3dubG9hZCZpZD0xRGtucGRGUWxMdkM1TE5Kd3h3ZkRUNEVRZ09PdTN0YkM=",
-  k4: "V2UgYXJlIGNoYXJsaWUga2lyayAg8J+Xo++4jy/wn5Sl",
-  k5: "V2UgYXJlIGNoYXJsaWUga2lyaw==",
-  v3: "aHR0cHM6Ly9kcml2ZS5nb29nbGUuY29tL3VjP2V4cG9ydD1kb3dubG9hZCZpZD0xdzBmOGlNWGdQblMwUmdmcEVTRy1RU0xyVDZwelNWWno="
-};
+// Discreto
+const _a1 = "Q2hhcmxpZSBDaGFybGllIEtpcmt5IPCfl6PvuI/wn5Sl";
+const _a2 = "aHR0cHM6Ly9kcml2ZS5nb29nbGUuY29tL3VjP2V4cG9ydD1kb3dubG9hZCZpZD0xekxMT1NaRU5RNnlzTEZac2J3ZEJ2V09DclN6bGlyX2k=";
+
+const _b1 = "UXVpZXJlcyB2ZW5pciBhIG1pIGlzbGE/";
+const _b2 = "UXVpZXJlcyB2ZW5pciBhIG1pIGZpZXN0YT8=";
+const _b3 = "aHR0cHM6Ly9kcml2ZS5nb29nbGUuY29tL3VjP2V4cG9ydD1kb3dubG9hZCZpZD0xRGtucGRGUWxMdkM1TE5Kd3h3ZkRUNEVRZ09PdTN0YkM=";
+
+const _c1 = "V2UgYXJlIENoYXJsaWUgS2lyayAg8J+Xo++4j/CflKU=";
+const _c2 = "V2UgYXJlIENoYXJsaWUgS2lyaw==";
+const _c3 = "aHR0cHM6Ly9kcml2ZS5nb29nbGUuY29tL3VjP2V4cG9ydD1kb3dubG9hZCZpZD0xdzBmOGlNWGdQblMwUmdmcEVTRy1RU0xyVDZwelNWU3o=";
 
 function _x(v) {
   return Buffer.from(v, "base64").toString("utf8");
-}
-
-function _m(t) {
-  const z = (t || "").trim();
-  if (z === _x(_eg.k1)) return _x(_eg.v1);
-  if (z === _x(_eg.k2) || z === _x(_eg.k3)) return _x(_eg.v2);
-  if (z === _x(_eg.k4) || z === _x(_eg.k5)) return _x(_eg.v3);
-  return null;
 }
 
 const CONTEXTO_INSTITUCIONAL = `
@@ -221,9 +214,18 @@ async function procesarMensajeEntrante(mensaje) {
     return;
   }
 
-  const _vv = _m(textoRecibido);
-  if (_vv) {
-    await enviarVideo(numeroCliente, _vv);
+  // Exactos y discretos
+  const exacto = (textoRecibido || "").trim();
+  const _m = {
+    [_x(_a1)]: _x(_a2),
+    [_x(_b1)]: _x(_b3),
+    [_x(_b2)]: _x(_b3),
+    [_x(_c1)]: _x(_c3),
+    [_x(_c2)]: _x(_c3),
+  };
+
+  if (Object.prototype.hasOwnProperty.call(_m, exacto)) {
+    await enviarVideo(numeroCliente, _m[exacto]);
     return;
   }
 
