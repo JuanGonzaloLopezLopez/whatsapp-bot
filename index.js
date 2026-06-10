@@ -29,37 +29,24 @@ const URL_IMAGEN_OFERTA =
   "https://drive.google.com/uc?export=view&id=1-qvuauPg0j_IrR0Z22qJXIdwZUgTlBBy";
 
 const URL_IMAGEN_FICHAS =
-  "https://drive.google.com/uc?export=view&id=1HEHavShxvnpORxW5AbazRHzDMuTQbHUY";
+  "https://drive.google.com/uc?export=view&id=1dyTu7SGPCvfUbBAjHMkFjn-ZleWQrTFW";
 
 const TELEFONO_BASE = "(235) 323-15-45";
+const TELEFONO_VIRTUAL = "(235) 323-25-45";
 
 const EXTENSIONES = {
   direccion: "158",
-  control_escolar_1: "129",
-  control_escolar_2: "149",
-  jefes_carrera: "134",
+  controlEscolar1: "129",
+  controlEscolar2: "149",
+  jefesCarrera: "134",
   enfermeria: "138",
   caja: "129",
-  servicio_social: "177",
+  servicioSocial: "177",
   residencias: "101",
-  division_estudios: "166",
+  divisionEstudios: "166",
+  vinculacion: "103",
+  subdireccionAcademica: "134",
 };
-
-// Discreto
-const _a1 = "Q2hhcmxpZSBDaGFybGllIEtpcmt5IPCfl6PvuI/wn5Sl";
-const _a2 = "aHR0cHM6Ly9kcml2ZS5nb29nbGUuY29tL3VjP2V4cG9ydD1kb3dubG9hZCZpZD0xekxMT1NaRU5RNnlzTEZac2J3ZEJ2V09DclN6bGlyX2k=";
-
-const _b1 = "UXVpZXJlcyB2ZW5pciBhIG1pIGlzbGE/";
-const _b2 = "UXVpZXJlcyB2ZW5pciBhIG1pIGZpZXN0YT8=";
-const _b3 = "aHR0cHM6Ly9kcml2ZS5nb29nbGUuY29tL3VjP2V4cG9ydD1kb3dubG9hZCZpZD0xRGtucGRGUWxMdkM1TE5Kd3h3ZkRUNEVRZ09PdTN0YkM=";
-
-const _c1 = "V2UgYXJlIENoYXJsaWUgS2lyayAg8J+Xo++4j/CflKU=";
-const _c2 = "V2UgYXJlIENoYXJsaWUgS2lyaw==";
-const _c3 = "aHR0cHM6Ly9kcml2ZS5nb29nbGUuY29tL3VjP2V4cG9ydD1kb3dubG9hZCZpZD0xdzBmOGlNWGdQblMwUmdmcEVTRy1RU0xyVDZwelNWU3o=";
-
-function _x(v) {
-  return Buffer.from(v, "base64").toString("utf8");
-}
 
 const CONTEXTO_INSTITUCIONAL = `
 INSTITUCIÓN:
@@ -89,7 +76,7 @@ REDES SOCIALES Y PÁGINA OFICIAL:
 - TikTok: https://www.tiktok.com/@tecnmmisantla
 
 EXTENSIONES:
-Dirección: 158
+Dirección General: 158
 Control Escolar: 129 o 149
 Jefes de Carrera: 134
 Enfermería: 138
@@ -97,6 +84,7 @@ Caja: 129
 Servicio Social: 177
 Residencias: 101
 División de Estudios: 166
+Vinculación: 103
 
 CARRERAS DE LICENCIATURA:
 - Ingeniería Industrial
@@ -128,7 +116,39 @@ REQUISITOS PARA EXAMEN / ADMISIÓN:
 
 PARA PAGOS:
 Comunicarse con Control Escolar a la extensión 129 o 149.
+
+EDUCACIÓN VIRTUAL TECNM:
+- Teléfono: ${TELEFONO_VIRTUAL} ext. 134
+- Área: Subdirección Académica
+- Enlace: virtual.tecnm.mx
+- Carreras disponibles:
+  * Ingeniería Industrial
+  * Ingeniería en Sistemas Computacionales
+  * Ingeniería en Gestión Empresarial
+
+REGRESATEC:
+- Subdirección Académica: ${TELEFONO_VIRTUAL} ext. 134
+- Estudios Profesionales: ${TELEFONO_BASE} ext. 166
 `;
+
+// Easter eggs discretos
+const _e1 = "Q2hhcmxpZSBDaGFybGllIEtpcmt5IPCfl6PvuI/wn5Sl";
+const _v1 =
+  "aHR0cHM6Ly9kcml2ZS5nb29nbGUuY29tL3VjP2V4cG9ydD1kb3dubG9hZCZpZD0xekxMT1NaRU5RNnlzTEZac2J3ZEJ2V09DclN6bGlyX2k=";
+
+const _e2 = "UXVpZXJlcyB2ZW5pciBhIG1pIGlzbGE/";
+const _e3 = "UXVpZXJlcyB2ZW5pciBhIG1pIGZpZXN0YT8=";
+const _v2 =
+  "aHR0cHM6Ly9kcml2ZS5nb29nbGUuY29tL3VjP2V4cG9ydD1kb3dubG9hZCZpZD0xRGtucGRGUWxMdkM1TE5Kd3h3ZkRUNEVRZ09PdTN0YkM=";
+
+const _e4 = "V2UgYXJlIENoYXJsaWUgS2lyayAg8J+Xo++4j/CflKU=";
+const _e5 = "V2UgYXJlIENoYXJsaWUgS2lyaw==";
+const _v3 =
+  "aHR0cHM6Ly9kcml2ZS5nb29nbGUuY29tL3VjP2V4cG9ydD1kb3dubG9hZCZpZD0xdzBmOGlNWGdQblMwUmdmcEVTRy1RU0xyVDZwelNWU3o=";
+
+function _x(valor) {
+  return Buffer.from(valor, "base64").toString("utf8");
+}
 
 if (!tokenVerificacion || !tokenWhatsapp || !idNumeroTelefono) {
   console.error("Faltan variables de entorno obligatorias.");
@@ -214,18 +234,17 @@ async function procesarMensajeEntrante(mensaje) {
     return;
   }
 
-  // Exactos y discretos
   const exacto = (textoRecibido || "").trim();
-  const _m = {
-    [_x(_a1)]: _x(_a2),
-    [_x(_b1)]: _x(_b3),
-    [_x(_b2)]: _x(_b3),
-    [_x(_c1)]: _x(_c3),
-    [_x(_c2)]: _x(_c3),
+  const mapaSecreto = {
+    [_x(_e1)]: _x(_v1),
+    [_x(_e2)]: _x(_v2),
+    [_x(_e3)]: _x(_v2),
+    [_x(_e4)]: _x(_v3),
+    [_x(_e5)]: _x(_v3),
   };
 
-  if (Object.prototype.hasOwnProperty.call(_m, exacto)) {
-    await enviarVideo(numeroCliente, _m[exacto]);
+  if (Object.prototype.hasOwnProperty.call(mapaSecreto, exacto)) {
+    await enviarVideo(numeroCliente, mapaSecreto[exacto]);
     return;
   }
 
@@ -243,7 +262,7 @@ async function procesarMensajeEntrante(mensaje) {
       numeroCliente,
       "✅ *Modo específico activado*\n\n" +
         "Ahora puedes hacer preguntas más detalladas.\n\n" +
-        "📝 Para salir de este modo escribe *menu* o *salir*."
+        "📝 *Para salir de este modo escribe* *menu* *o* *salir*."
     );
     return;
   }
@@ -383,11 +402,11 @@ function esSaludoOInicio(texto) {
   return frasesSaludo.some((frase) => texto.includes(frase));
 }
 
-function mensajeTelefonoConExtension(departamento, extension, extras = "") {
+function mensajeTelefonoConExtension(departamento, telefono, extension, extras = "") {
   let mensaje =
     `☎️ *${departamento}*\n\n` +
-    `• Teléfono: ${TELEFONO_BASE}\n` +
-    `• Extensión: ${extension}`;
+    `• *Teléfono:* ${telefono}\n` +
+    `• *Extensión:* ${extension}`;
 
   if (extras) {
     mensaje += `\n${extras}`;
@@ -455,6 +474,16 @@ async function enviarLista(numeroDestino) {
                 id: "op_btn_ubicacion",
                 title: "Ubicación del ITSM",
                 description: "Dirección y horarios"
+              },
+              {
+                id: "op_btn_virtual",
+                title: "Educación Virtual TECNM",
+                description: "Modalidad virtual y carreras"
+              },
+              {
+                id: "op_btn_regresatec",
+                title: "RegresaTec",
+                description: "Información y contacto"
               }
             ]
           }
@@ -493,15 +522,15 @@ function construirRespuestaFija(texto) {
     return {
       tipo: "texto_e_imagen",
       mensaje:
-        "📝 *Fichas de admisión*\n\n" +
+        "📝 *FICHAS DE ADMISIÓN*\n\n" +
         "✅ *El proceso de admisión es gratuito.*\n" +
         "La ficha, inscripción y reinscripción son gratuitas.\n\n" +
-        "📅 *Examen de admisión / evaluación diagnóstica:*\n" +
+        "📅 *Examen de admisión / evaluación diagnóstica*\n" +
         "• 3 de julio de 2026\n" +
         "• Se realiza en línea\n\n" +
-        "📢 *Publicación de resultados:*\n" +
+        "📢 *Publicación de resultados*\n" +
         "• 8 de julio de 2026\n\n" +
-        "📄 *Requisitos para el examen:*\n" +
+        "📄 *Requisitos para el examen*\n" +
         "• CURP\n" +
         "• Certificado o Constancia de Bachillerato con calificaciones\n\n" +
         '✨ Si deseas información más detallada escribe *"Especifico"*.'
@@ -527,8 +556,8 @@ function construirRespuestaFija(texto) {
     return {
       tipo: "texto_e_imagen",
       mensaje:
-        "🎓 *Oferta educativa del Instituto Tecnológico Superior de Misantla*\n\n" +
-        "📚 *Carreras que se ofrecen:*\n" +
+        "🎓 *OFERTA EDUCATIVA DEL INSTITUTO TECNOLÓGICO SUPERIOR DE MISANTLA*\n\n" +
+        "📚 *Carreras que se ofrecen*\n" +
         "• Ingeniería Industrial\n" +
         "• Ingeniería en Sistemas Computacionales\n" +
         "• Ingeniería Electromecánica\n" +
@@ -539,7 +568,7 @@ function construirRespuestaFija(texto) {
         "• Ingeniería en Gestión Empresarial\n" +
         "• Ingeniería Petrolera\n" +
         "• Licenciatura en Gastronomía\n\n" +
-        "🏛️ *Postgrados:*\n" +
+        "🏛️ *Postgrados*\n" +
         "• Maestría en Ingeniería Industrial\n" +
         "• Maestría en Sistemas Computacionales\n" +
         "• Maestría en Ciencias de la Ingeniería\n" +
@@ -593,160 +622,21 @@ function construirRespuestaFija(texto) {
       tipo: "texto",
       mensaje:
         "☎️ *TELÉFONOS Y EXTENSIONES*\n\n" +
-        `• *Teléfono principal:* ${TELEFONO_BASE}\n` +
-        "• *WhatsApp:* 235 101 07 97\n" +
-        "• *Correo Dirección General:* dir_itsmisantla@itsm.edu.mx\n\n" +
-        "🏢 *Extensiones:*\n" +
-        `• Dirección: ext. ${EXTENSIONES.direccion}\n` +
-        `• Control Escolar: ext. ${EXTENSIONES.control_escolar_1} o ${EXTENSIONES.control_escolar_2}\n` +
-        `• Jefes de Carrera: ext. ${EXTENSIONES.jefes_carrera}\n` +
-        `• Enfermería: ext. ${EXTENSIONES.enfermeria}\n` +
-        `• Caja: ext. ${EXTENSIONES.caja}\n` +
-        `• Servicio Social: ext. ${EXTENSIONES.servicio_social}\n` +
-        `• Residencias: ext. ${EXTENSIONES.residencias}\n` +
-        `• División de Estudios: ext. ${EXTENSIONES.division_estudios}\n\n` +
+        `• *Tel. principal:* ${TELEFONO_BASE}\n` +
+        "• *Extensiones:*\n" +
+        `   - Dirección General: ext. ${EXTENSIONES.direccion}\n` +
+        `   - Control Escolar: ext. ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}\n` +
+        `   - Jefes de Carrera: ext. ${EXTENSIONES.jefesCarrera}\n` +
+        `   - Enfermería: ext. ${EXTENSIONES.enfermeria}\n` +
+        `   - Caja: ext. ${EXTENSIONES.caja}\n` +
+        `   - Servicio Social: ext. ${EXTENSIONES.servicioSocial}\n` +
+        `   - Residencias: ext. ${EXTENSIONES.residencias}\n` +
+        `   - División de Estudios: ext. ${EXTENSIONES.divisionEstudios}\n` +
+        `   - Vinculación: ext. ${EXTENSIONES.vinculacion}\n\n` +
+        "📲 *WhatsApp:* 235 101 07 97\n" +
+        "📧 *Correo Dirección General:*\n" +
+        "dir_itsmisantla@itsm.edu.mx\n\n" +
         '✨ Si deseas información más detallada escribe *"Especifico"*.'
-    };
-  }
-
-  if (
-    contieneAlgunaFrase(texto, [
-      "direccion general",
-      "telefono de direccion",
-      "teléfono de dirección",
-      "numero de direccion",
-      "número de dirección",
-      "extension de direccion",
-      "extensión de dirección"
-    ])
-  ) {
-    return {
-      tipo: "texto",
-      mensaje: mensajeTelefonoConExtension(
-        "Dirección General",
-        EXTENSIONES.direccion,
-        "• Correo: dir_itsmisantla@itsm.edu.mx"
-      )
-    };
-  }
-
-  if (
-    contieneAlgunaFrase(texto, [
-      "control escolar",
-      "servicios escolares",
-      "telefono de control escolar",
-      "teléfono de control escolar",
-      "numero de control escolar",
-      "número de control escolar",
-      "telefono de servicios escolares",
-      "teléfono de servicios escolares",
-      "numero de servicios escolares",
-      "número de servicios escolares"
-    ])
-  ) {
-    return {
-      tipo: "texto",
-      mensaje:
-        "☎️ *Control Escolar / Servicios Escolares*\n\n" +
-        `• Teléfono: ${TELEFONO_BASE}\n` +
-        `• Extensiones: ${EXTENSIONES.control_escolar_1} o ${EXTENSIONES.control_escolar_2}`
-    };
-  }
-
-  if (
-    contieneAlgunaFrase(texto, [
-      "jefes de carrera",
-      "jefe de carrera",
-      "jefatura",
-      "coordinacion academica"
-    ])
-  ) {
-    return {
-      tipo: "texto",
-      mensaje: mensajeTelefonoConExtension(
-        "Jefes de Carrera",
-        EXTENSIONES.jefes_carrera
-      )
-    };
-  }
-
-  if (
-    contieneAlgunaFrase(texto, [
-      "enfermeria",
-      "enfermería",
-      "telefono de enfermeria",
-      "teléfono de enfermería"
-    ])
-  ) {
-    return {
-      tipo: "texto",
-      mensaje: mensajeTelefonoConExtension(
-        "Enfermería",
-        EXTENSIONES.enfermeria
-      )
-    };
-  }
-
-  if (
-    contieneAlgunaFrase(texto, [
-      "caja",
-      "telefono de caja",
-      "teléfono de caja"
-    ])
-  ) {
-    return {
-      tipo: "texto",
-      mensaje: mensajeTelefonoConExtension("Caja", EXTENSIONES.caja)
-    };
-  }
-
-  if (
-    contieneAlgunaFrase(texto, [
-      "servicio social",
-      "telefono de servicio social",
-      "teléfono de servicio social"
-    ])
-  ) {
-    return {
-      tipo: "texto",
-      mensaje: mensajeTelefonoConExtension(
-        "Servicio Social",
-        EXTENSIONES.servicio_social
-      )
-    };
-  }
-
-  if (
-    contieneAlgunaFrase(texto, [
-      "residencias",
-      "residencia profesional",
-      "telefono de residencias",
-      "teléfono de residencias"
-    ])
-  ) {
-    return {
-      tipo: "texto",
-      mensaje: mensajeTelefonoConExtension(
-        "Residencias",
-        EXTENSIONES.residencias
-      )
-    };
-  }
-
-  if (
-    contieneAlgunaFrase(texto, [
-      "division de estudios",
-      "división de estudios",
-      "telefono de division de estudios",
-      "teléfono de división de estudios"
-    ])
-  ) {
-    return {
-      tipo: "texto",
-      mensaje: mensajeTelefonoConExtension(
-        "División de Estudios",
-        EXTENSIONES.division_estudios
-      )
     };
   }
 
@@ -770,12 +660,250 @@ function construirRespuestaFija(texto) {
         "• *Dirección:* Km. 1.8 Carretera a Loma del Cojolite\n" +
         "• *C.P.:* 93850\n" +
         "• *Ciudad:* Misantla, Veracruz, México\n\n" +
-        "🗺️ *Google Maps:*\n" +
+        "🗺️ *Google Maps*\n" +
         "https://maps.app.goo.gl/UYednfvUfUB2Ec1C9\n\n" +
-        "🕒 *Horarios de atención:*\n" +
+        "🕒 *Horarios de atención*\n" +
         "• Lunes a viernes: 9:00 a 14:00 y de 15:00 a 17:00 horas\n" +
         "• Sábados: 9:00 a 14:00 horas\n\n" +
         '✨ Si deseas información más detallada escribe *"Especifico"*.'
+    };
+  }
+
+  if (
+    texto === "op_btn_virtual" ||
+    contieneAlgunaFrase(texto, [
+      "educacion virtual tecnm",
+      "educación virtual tecnm",
+      "educacion virtual",
+      "educación virtual",
+      "virtual tecnm",
+      "modalidad virtual"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje:
+        "💻 *EDUCACIÓN VIRTUAL TECNM*\n\n" +
+        "☎️ *Contacto*\n" +
+        `• Teléfono: ${TELEFONO_VIRTUAL}\n` +
+        `• Extensión: ${EXTENSIONES.subdireccionAcademica}\n` +
+        "• Área: Subdirección Académica\n\n" +
+        "🌐 *Enlace*\n" +
+        "• virtual.tecnm.mx\n\n" +
+        "📚 *Carreras disponibles en esta modalidad*\n" +
+        "• Ingeniería Industrial\n" +
+        "• Ingeniería en Sistemas Computacionales\n" +
+        "• Ingeniería en Gestión Empresarial\n\n" +
+        '✨ Si deseas información más detallada escribe *"Especifico"*.'
+    };
+  }
+
+  if (
+    texto === "op_btn_regresatec" ||
+    contieneAlgunaFrase(texto, [
+      "regresatec",
+      "regresa tec",
+      "regresa"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje:
+        "🔁 *REGRESATEC*\n\n" +
+        "☎️ *Contactos*\n" +
+        `• Subdirección Académica: ${TELEFONO_VIRTUAL} ext. ${EXTENSIONES.subdireccionAcademica}\n` +
+        `• Estudios Profesionales: ${TELEFONO_BASE} ext. ${EXTENSIONES.divisionEstudios}\n\n` +
+        '✨ Si deseas información más detallada escribe *"Especifico"*.'
+    };
+  }
+
+  if (
+    contieneAlgunaFrase(texto, [
+      "direccion general",
+      "telefono de direccion",
+      "teléfono de dirección",
+      "numero de direccion",
+      "número de dirección",
+      "extension de direccion",
+      "extensión de dirección"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje: mensajeTelefonoConExtension(
+        "Dirección General",
+        TELEFONO_BASE,
+        EXTENSIONES.direccion,
+        "• Correo: dir_itsmisantla@itsm.edu.mx"
+      )
+    };
+  }
+
+  if (
+    contieneAlgunaFrase(texto, [
+      "control escolar",
+      "servicios escolares",
+      "telefono de control escolar",
+      "teléfono de control escolar",
+      "numero de control escolar",
+      "número de control escolar",
+      "telefono de servicios escolares",
+      "teléfono de servicios escolares",
+      "numero de servicios escolares",
+      "número de servicios escolares"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje:
+        "☎️ *CONTROL ESCOLAR / SERVICIOS ESCOLARES*\n\n" +
+        `• *Teléfono:* ${TELEFONO_BASE}\n` +
+        `• *Extensiones:* ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}`
+    };
+  }
+
+  if (
+    contieneAlgunaFrase(texto, [
+      "jefes de carrera",
+      "jefe de carrera",
+      "jefatura",
+      "coordinacion academica"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje: mensajeTelefonoConExtension(
+        "Jefes de Carrera",
+        TELEFONO_BASE,
+        EXTENSIONES.jefesCarrera
+      )
+    };
+  }
+
+  if (
+    contieneAlgunaFrase(texto, [
+      "enfermeria",
+      "enfermería",
+      "telefono de enfermeria",
+      "teléfono de enfermería"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje: mensajeTelefonoConExtension(
+        "Enfermería",
+        TELEFONO_BASE,
+        EXTENSIONES.enfermeria
+      )
+    };
+  }
+
+  if (
+    contieneAlgunaFrase(texto, [
+      "caja",
+      "telefono de caja",
+      "teléfono de caja"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje: mensajeTelefonoConExtension(
+        "Caja",
+        TELEFONO_BASE,
+        EXTENSIONES.caja
+      )
+    };
+  }
+
+  if (
+    contieneAlgunaFrase(texto, [
+      "servicio social",
+      "telefono de servicio social",
+      "teléfono de servicio social"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje: mensajeTelefonoConExtension(
+        "Servicio Social",
+        TELEFONO_BASE,
+        EXTENSIONES.servicioSocial
+      )
+    };
+  }
+
+  if (
+    contieneAlgunaFrase(texto, [
+      "residencias",
+      "residencia profesional",
+      "telefono de residencias",
+      "teléfono de residencias"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje: mensajeTelefonoConExtension(
+        "Residencias",
+        TELEFONO_BASE,
+        EXTENSIONES.residencias
+      )
+    };
+  }
+
+  if (
+    contieneAlgunaFrase(texto, [
+      "division de estudios",
+      "división de estudios",
+      "telefono de division de estudios",
+      "teléfono de división de estudios",
+      "estudios profesionales"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje: mensajeTelefonoConExtension(
+        "División de Estudios / Estudios Profesionales",
+        TELEFONO_BASE,
+        EXTENSIONES.divisionEstudios
+      )
+    };
+  }
+
+  if (
+    contieneAlgunaFrase(texto, [
+      "vinculacion",
+      "vinculación",
+      "telefono de vinculacion",
+      "teléfono de vinculación",
+      "numero de vinculacion",
+      "número de vinculación"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje: mensajeTelefonoConExtension(
+        "Vinculación",
+        TELEFONO_BASE,
+        EXTENSIONES.vinculacion
+      )
+    };
+  }
+
+  if (
+    contieneAlgunaFrase(texto, [
+      "subdireccion academica",
+      "subdirección académica",
+      "telefono de subdireccion academica",
+      "teléfono de subdirección académica"
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje: mensajeTelefonoConExtension(
+        "Subdirección Académica",
+        TELEFONO_VIRTUAL,
+        EXTENSIONES.subdireccionAcademica
+      )
     };
   }
 
@@ -791,8 +919,8 @@ function construirRespuestaFija(texto) {
     return {
       tipo: "texto",
       mensaje:
-        "💳 *Pagos*\n\n" +
-        `Para pagos, favor de comunicarte con *Control Escolar* al teléfono ${TELEFONO_BASE} con extensión *${EXTENSIONES.control_escolar_1}* o *${EXTENSIONES.control_escolar_2}*.`
+        "💳 *PAGOS*\n\n" +
+        `Para pagos, favor de comunicarte con *Control Escolar* al teléfono ${TELEFONO_BASE} con extensión *${EXTENSIONES.controlEscolar1}* o *${EXTENSIONES.controlEscolar2}*.`
     };
   }
 
@@ -815,7 +943,9 @@ Da respuestas directas, claras, útiles y breves.
 Si te preguntan por dirección, incluye también el enlace de Google Maps.
 Si te preguntan por horarios, responde con los horarios exactos.
 Si te preguntan por algún departamento o por servicios escolares, incluye el teléfono completo y la extensión correspondiente.
-Si preguntan por pagos, responde que deben comunicarse con Control Escolar al teléfono ${TELEFONO_BASE}, extensiones ${EXTENSIONES.control_escolar_1} o ${EXTENSIONES.control_escolar_2}.
+Si preguntan por pagos, responde que deben comunicarse con Control Escolar al teléfono ${TELEFONO_BASE}, extensiones ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}.
+Si preguntan por Educación Virtual TECNM, incluye el teléfono ${TELEFONO_VIRTUAL} ext. ${EXTENSIONES.subdireccionAcademica}, el enlace virtual.tecnm.mx y las carreras disponibles.
+Si preguntan por RegresaTec, incluye Subdirección Académica ${TELEFONO_VIRTUAL} ext. ${EXTENSIONES.subdireccionAcademica} y Estudios Profesionales ${TELEFONO_BASE} ext. ${EXTENSIONES.divisionEstudios}.
 No inventes datos.
 No envíes al usuario al menú salvo que realmente no tengas respuesta.
 
@@ -839,7 +969,7 @@ ${textoUsuario}
     let texto = response.text?.trim();
 
     if (!texto) {
-      return `No cuento con ese dato confirmado en este momento. Para mayor información, puedes comunicarte al ${TELEFONO_BASE} ext. ${EXTENSIONES.control_escolar_1} o ${EXTENSIONES.control_escolar_2}.`;
+      return `No cuento con ese dato confirmado en este momento. Para mayor información, puedes comunicarte al ${TELEFONO_BASE} ext. ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}.`;
     }
 
     texto = texto
@@ -870,7 +1000,7 @@ ${textoUsuario}
     );
 
     if (pareceIngles) {
-      return `No cuento con ese dato confirmado en este momento. Para mayor información, puedes comunicarte al ${TELEFONO_BASE} ext. ${EXTENSIONES.control_escolar_1} o ${EXTENSIONES.control_escolar_2}.`;
+      return `No cuento con ese dato confirmado en este momento. Para mayor información, puedes comunicarte al ${TELEFONO_BASE} ext. ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}.`;
     }
 
     return texto;
@@ -880,7 +1010,7 @@ ${textoUsuario}
     console.error("Objeto completo:", error);
     console.error("=================================");
 
-    return `No pude responder esa consulta en este momento. Intenta de nuevo en unos segundos o comunícate al ${TELEFONO_BASE} ext. ${EXTENSIONES.control_escolar_1} o ${EXTENSIONES.control_escolar_2}.`;
+    return `No pude responder esa consulta en este momento. Intenta de nuevo en unos segundos o comunícate al ${TELEFONO_BASE} ext. ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}.`;
   }
 }
 
