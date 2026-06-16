@@ -75,6 +75,7 @@ const URL_IMAGEN_FICHAS =
 
 const TELEFONO_BASE = "(235) 323-15-45";
 const TELEFONO_VIRTUAL = "(235) 323-25-45";
+const WHATSAPP_ASISTENCIA = "235 101 07 97";
 
 const EXTENSIONES = {
   direccion: "158",
@@ -106,7 +107,7 @@ Sábados: 9:00 a 14:00 horas.
 
 TELÉFONOS:
 Tel. principal: ${TELEFONO_BASE}
-WhatsApp: 235 101 07 97
+WhatsApp de asistencia real: ${WHATSAPP_ASISTENCIA}
 
 CORREO DIRECCIÓN GENERAL:
 dir_itsmisantla@itsm.edu.mx
@@ -178,6 +179,10 @@ if (!tokenVerificacion || !tokenWhatsapp || !idNumeroTelefono) {
   process.exit(1);
 }
 
+function esperar(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function claveFirebase(valor) {
   return String(valor || "").replace(/[.#$\[\]\/]/g, "_");
 }
@@ -222,7 +227,7 @@ async function leerConversacionesFirebase() {
     const snapshot = await firebaseDb.ref("conversaciones").once("value");
     const data = snapshot.val() || {};
 
-    const lista = Object.values(data).map((conv) => {
+    const lista = Object.entries(data).map(([clave, conv]) => {
       const mensajesObj = conv.mensajes || {};
 
       const mensajes = Object.values(mensajesObj).sort(
@@ -230,6 +235,7 @@ async function leerConversacionesFirebase() {
       );
 
       return {
+        clave,
         numero: conv.numero || "",
         creadoEn: conv.creadoEn || "",
         actualizadoEn: conv.actualizadoEn || "",
@@ -245,6 +251,20 @@ async function leerConversacionesFirebase() {
   } catch (error) {
     console.error("Error leyendo conversaciones de Firebase:", error);
     return [];
+  }
+}
+
+async function eliminarConversacionFirebase(clave) {
+  try {
+    if (!firebaseDb || !clave) return false;
+
+    const claveSegura = claveFirebase(clave);
+    await firebaseDb.ref(`conversaciones/${claveSegura}`).remove();
+
+    return true;
+  } catch (error) {
+    console.error("Error eliminando conversación:", error);
+    return false;
   }
 }
 
@@ -287,6 +307,22 @@ app.get("/webhook", (req, res) => {
 app.get("/api/conversaciones", validarAdmin, async (req, res) => {
   const conversaciones = await leerConversacionesFirebase();
   res.json(conversaciones);
+});
+
+app.delete("/api/conversaciones/:clave", validarAdmin, async (req, res) => {
+  const eliminado = await eliminarConversacionFirebase(req.params.clave);
+
+  if (!eliminado) {
+    return res.status(500).json({
+      ok: false,
+      mensaje: "No se pudo eliminar la conversación.",
+    });
+  }
+
+  return res.json({
+    ok: true,
+    mensaje: "Conversación eliminada correctamente.",
+  });
 });
 
 app.get("/panel", validarAdmin, (req, res) => {
@@ -384,9 +420,31 @@ app.get("/panel", validarAdmin, (req, res) => {
 
     .chat-header {
       background: white;
-      padding: 14px 18px;
+      padding: 12px 18px;
       border-bottom: 1px solid #ddd;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .chat-title {
       font-weight: bold;
+    }
+
+    .btn-eliminar {
+      display: none;
+      border: none;
+      background: #dc2626;
+      color: white;
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .btn-eliminar:hover {
+      background: #b91c1c;
     }
 
     .mensajes {
@@ -479,6 +537,10 @@ app.get("/panel", validarAdmin, (req, res) => {
       .chat {
         height: calc(60vh - 56px);
       }
+
+      .burbuja {
+        max-width: 90%;
+      }
     }
   </style>
 </head>
@@ -499,7 +561,11 @@ app.get("/panel", validarAdmin, (req, res) => {
     </section>
 
     <section class="chat">
-      <div id="chatHeader" class="chat-header">Selecciona una conversación</div>
+      <div class="chat-header">
+        <div id="chatHeaderTitle" class="chat-title">Selecciona una conversación</div>
+        <button id="btnEliminar" class="btn-eliminar" onclick="eliminarSeleccionado()">Eliminar chat</button>
+      </div>
+
       <div id="mensajes" class="mensajes">
         <div class="vacio">Aquí aparecerán los mensajes recibidos y enviados por el bot.</div>
       </div>
@@ -512,7 +578,8 @@ app.get("/panel", validarAdmin, (req, res) => {
 
     const contactosDiv = document.getElementById("contactos");
     const mensajesDiv = document.getElementById("mensajes");
-    const chatHeader = document.getElementById("chatHeader");
+    const chatHeaderTitle = document.getElementById("chatHeaderTitle");
+    const btnEliminar = document.getElementById("btnEliminar");
     const buscarInput = document.getElementById("buscar");
 
     function fechaBonita(valor) {
@@ -541,7 +608,14 @@ app.get("/panel", validarAdmin, (req, res) => {
 
         if (seleccionado) {
           const actual = conversaciones.find(c => c.numero === seleccionado);
-          if (actual) renderMensajes(actual);
+          if (actual) {
+            renderMensajes(actual);
+          } else {
+            seleccionado = null;
+            chatHeaderTitle.textContent = "Selecciona una conversación";
+            btnEliminar.style.display = "none";
+            mensajesDiv.innerHTML = '<div class="vacio">Aquí aparecerán los mensajes recibidos y enviados por el bot.</div>';
+          }
         }
       } catch (error) {
         console.error(error);
@@ -600,7 +674,8 @@ app.get("/panel", validarAdmin, (req, res) => {
     }
 
     function renderMensajes(conv) {
-      chatHeader.textContent = "Conversación con " + conv.numero;
+      chatHeaderTitle.textContent = "Conversación con " + conv.numero;
+      btnEliminar.style.display = "inline-block";
       mensajesDiv.innerHTML = "";
 
       if (!conv.mensajes || conv.mensajes.length === 0) {
@@ -639,6 +714,37 @@ app.get("/panel", validarAdmin, (req, res) => {
       });
 
       mensajesDiv.scrollTop = mensajesDiv.scrollHeight;
+    }
+
+    async function eliminarSeleccionado() {
+      if (!seleccionado) return;
+
+      const conv = conversaciones.find(c => c.numero === seleccionado);
+      if (!conv) return;
+
+      const confirmar = confirm("¿Seguro que deseas eliminar este chat? Esta acción no se puede deshacer.");
+      if (!confirmar) return;
+
+      try {
+        const res = await fetch("/api/conversaciones/" + encodeURIComponent(conv.clave), {
+          method: "DELETE"
+        });
+
+        if (!res.ok) {
+          alert("No se pudo eliminar el chat.");
+          return;
+        }
+
+        seleccionado = null;
+        chatHeaderTitle.textContent = "Selecciona una conversación";
+        btnEliminar.style.display = "none";
+        mensajesDiv.innerHTML = '<div class="vacio">Aquí aparecerán los mensajes recibidos y enviados por el bot.</div>';
+
+        await cargarConversaciones();
+      } catch (error) {
+        console.error(error);
+        alert("Ocurrió un error al eliminar el chat.");
+      }
     }
 
     buscarInput.addEventListener("input", renderContactos);
@@ -744,7 +850,10 @@ async function procesarMensajeEntrante(mensaje) {
   const textoNormalizado = normalizarTexto(textoRecibido);
   const sesionActual = obtenerSesion(numeroCliente);
 
-  if (textoNormalizado === "especifico") {
+  if (
+    textoNormalizado === "especifico" ||
+    textoNormalizado === "op_btn_especifico"
+  ) {
     sesiones.set(numeroCliente, {
       ...sesionActual,
       modoEspecifico: true,
@@ -755,12 +864,17 @@ async function procesarMensajeEntrante(mensaje) {
       numeroCliente,
       "✅ *Modo específico activado*\n\n" +
         "Ahora puedes hacer preguntas más detalladas.\n\n" +
-        "📝 *Para salir de este modo escribe* *menu* *o* *salir*."
+        "📝 Para salir de este modo escribe *menu*, *inicio* o *salir*."
     );
     return;
   }
 
-  if (textoNormalizado === "salir") {
+  if (
+    textoNormalizado === "salir" ||
+    textoNormalizado === "menu" ||
+    textoNormalizado === "menú" ||
+    textoNormalizado === "inicio"
+  ) {
     sesiones.set(numeroCliente, {
       ...sesionActual,
       modoEspecifico: false,
@@ -772,10 +886,26 @@ async function procesarMensajeEntrante(mensaje) {
     return;
   }
 
+  if (detectarSolicitudHumana(textoNormalizado)) {
+    await enviarTexto(numeroCliente, mensajeAsistenciaReal());
+    return;
+  }
+
   const sesionRefrescada = obtenerSesion(numeroCliente);
 
   if (sesionRefrescada.modoEspecifico) {
+    if (esConsultaDemasiadoAmbigua(textoNormalizado)) {
+      await enviarTexto(numeroCliente, mensajeAsistenciaReal());
+      return;
+    }
+
     const respuestaIA = await generarRespuestaIA(textoRecibido);
+
+    if (esRespuestaSinDato(respuestaIA)) {
+      await enviarTexto(numeroCliente, mensajeAsistenciaReal());
+      return;
+    }
+
     await enviarTexto(numeroCliente, respuestaIA);
     return;
   }
@@ -797,17 +927,26 @@ async function procesarMensajeEntrante(mensaje) {
   if (respuestaFija) {
     if (respuestaFija.tipo === "texto") {
       await enviarTexto(numeroCliente, respuestaFija.mensaje);
+
+      if (vieneDeLista) {
+        await esperar(800);
+        await enviarMenuPrincipal(numeroCliente);
+      }
     } else if (respuestaFija.tipo === "texto_e_imagen") {
       await enviarTexto(numeroCliente, respuestaFija.mensaje);
+
+      await esperar(800);
+
       await enviarImagen(
         numeroCliente,
         respuestaFija.imageUrl,
         respuestaFija.caption || ""
       );
-    }
 
-    if (vieneDeLista) {
-      await enviarMenuPrincipal(numeroCliente);
+      if (vieneDeLista) {
+        await esperar(2500);
+        await enviarMenuPrincipal(numeroCliente);
+      }
     }
 
     return;
@@ -816,10 +955,11 @@ async function procesarMensajeEntrante(mensaje) {
   await enviarTexto(
     numeroCliente,
     "❓ *No encontré una respuesta fija para esa duda.*\n\n" +
-      'Escribe *menu* para ver el menú principal o *Especifico* para hacer una consulta más detallada.'
+      'Escribe *menu* para ver el menú principal o selecciona *Especifico* para hacer una consulta más detallada.'
   );
 
   if (vieneDeLista) {
+    await esperar(800);
     await enviarMenuPrincipal(numeroCliente);
   }
 }
@@ -851,11 +991,128 @@ function contieneAlgunaFrase(texto, frases) {
   return frases.some((frase) => texto.includes(frase));
 }
 
+function detectarSolicitudHumana(texto) {
+  const frases = [
+    "quiero hablar con alguien real",
+    "quiero hablar con una persona",
+    "necesito hablar con alguien",
+    "necesito hablar con una persona",
+    "quiero hablar con un asesor",
+    "necesito un asesor",
+    "pasame con alguien",
+    "pásame con alguien",
+    "pasame con una persona",
+    "pásame con una persona",
+    "pasame con un asesor",
+    "pásame con un asesor",
+    "quiero atencion real",
+    "quiero atención real",
+    "necesito atencion real",
+    "necesito atención real",
+    "atencion personalizada",
+    "atención personalizada",
+    "asistencia real",
+    "humano",
+    "persona real",
+    "asesor real",
+    "no me respondes",
+    "no respondes",
+    "no entiendes",
+    "no me entiendes",
+    "no me ayudas",
+    "no sirve",
+    "no me sirve",
+    "esto no sirve",
+    "pesimo",
+    "pésimo",
+    "mala atencion",
+    "mala atención",
+    "necesito que responda a mis preguntas",
+    "necesito que respondas a mis preguntas",
+    "quiero que respondan mis preguntas",
+    "no contestas mi pregunta",
+    "no contesta mi pregunta",
+    "no responde mi duda",
+    "no resuelve mi duda",
+    "me urge hablar con alguien",
+    "comunicarme con alguien",
+    "comunicarme con una persona",
+  ];
+
+  return contieneAlgunaFrase(texto, frases);
+}
+
+function esConsultaDemasiadoAmbigua(texto) {
+  const consultasAmbiguas = [
+    "",
+    "?",
+    "??",
+    "???",
+    "ayuda",
+    "ayudame",
+    "ayúdame",
+    "informacion",
+    "información",
+    "quiero informacion",
+    "quiero información",
+    "necesito informacion",
+    "necesito información",
+    "duda",
+    "pregunta",
+    "tengo una duda",
+    "tengo una pregunta",
+    "no se",
+    "no sé",
+    "nose",
+    "dime",
+    "que hago",
+    "qué hago",
+    "como le hago",
+    "cómo le hago",
+    "explicame",
+    "explícame",
+  ];
+
+  return consultasAmbiguas.includes(texto);
+}
+
+function esRespuestaSinDato(respuesta) {
+  const texto = normalizarTexto(respuesta || "");
+
+  const frases = [
+    "no cuento con ese dato",
+    "no cuento con informacion",
+    "no cuento con información",
+    "no tengo informacion",
+    "no tengo información",
+    "no pude responder",
+    "no puedo responder",
+    "no encontre",
+    "no encontré",
+    "no se encontro",
+    "no se encontró",
+    "no puedo confirmar",
+    "no dispongo",
+    "no hay informacion",
+    "no hay información",
+    "intenta mas tarde",
+    "intenta más tarde",
+  ];
+
+  return contieneAlgunaFrase(texto, frases);
+}
+
+function mensajeAsistenciaReal() {
+  return (
+    "🙋 *Asistencia real*\n\n" +
+    "Si necesitas hablar con una persona o tu duda no fue resuelta, puedes comunicarte por WhatsApp al:\n\n" +
+    `📲 *${WHATSAPP_ASISTENCIA}*\n\n` +
+    "Ahí podrán brindarte atención personalizada."
+  );
+}
+
 function esSaludoOInicio(texto) {
   const frasesSaludo = [
-    "menu",
-    "menú",
-    "inicio",
     "hola",
     "ola",
     "holaa",
@@ -924,12 +1181,6 @@ function mensajeTelefonoConExtension(
 
 async function enviarMenuPrincipal(numeroDestino) {
   await enviarLista(numeroDestino);
-
-  await enviarTexto(
-    numeroDestino,
-    "📌 *También puedes escribir directamente una opción del menú.*\n\n" +
-      'Si deseas información más detallada escribe *"Especifico"*.'
-  );
 }
 
 async function enviarLista(numeroDestino) {
@@ -949,7 +1200,7 @@ async function enviarLista(numeroDestino) {
         text: "Selecciona una opción:",
       },
       footer: {
-        text: 'Para consultas más detalladas escribe "Especifico".',
+        text: "Elige Especifico para hacer preguntas más detalladas.",
       },
       action: {
         button: "Ver opciones",
@@ -984,13 +1235,18 @@ async function enviarLista(numeroDestino) {
               },
               {
                 id: "op_btn_virtual",
-                title: "Educación Virtual TECNM",
-                description: "Modalidad virtual y carreras",
+                title: "Educación Virtual",
+                description: "Modalidad virtual TECNM",
               },
               {
                 id: "op_btn_regresatec",
                 title: "RegresaTec",
                 description: "Información y contacto",
+              },
+              {
+                id: "op_btn_especifico",
+                title: "Especifico",
+                description: "Activa preguntas detalladas",
               },
             ],
           },
@@ -1048,7 +1304,7 @@ function construirRespuestaFija(texto) {
         "📄 *Requisitos para el examen*\n" +
         "• CURP\n" +
         "• Certificado o Constancia de Bachillerato con calificaciones\n\n" +
-        '✨ Si deseas información más detallada escribe *"Especifico"*.',
+        '✨ Si deseas información más detallada selecciona *Especifico* en el menú.',
       imageUrl: URL_IMAGEN_FICHAS,
       caption: "📝 Fichas de admisión",
     };
@@ -1089,7 +1345,7 @@ function construirRespuestaFija(texto) {
         "• Maestría en Sistemas Computacionales\n" +
         "• Maestría en Ciencias de la Ingeniería\n" +
         "• Doctorado en Ciencias de la Ingeniería\n\n" +
-        '✨ Si deseas información más detallada escribe *"Especifico"*.',
+        '✨ Si deseas información más detallada selecciona *Especifico* en el menú.',
       imageUrl: URL_IMAGEN_OFERTA,
       caption: "🎓 Oferta educativa del Instituto Tecnológico Superior de Misantla",
     };
@@ -1119,7 +1375,7 @@ function construirRespuestaFija(texto) {
         "https://www.instagram.com/tecnmmisantla/\n\n" +
         "🎵 *TikTok*\n" +
         "https://www.tiktok.com/@tecnmmisantla\n\n" +
-        '✨ *Si deseas información más detallada escribe "Especifico".*',
+        "✨ Si deseas información más detallada selecciona *Especifico* en el menú.",
     };
   }
 
@@ -1148,10 +1404,10 @@ function construirRespuestaFija(texto) {
         `   - Residencias: ext. ${EXTENSIONES.residencias}\n` +
         `   - División de Estudios: ext. ${EXTENSIONES.divisionEstudios}\n` +
         `   - Vinculación: ext. ${EXTENSIONES.vinculacion}\n\n` +
-        "📲 *WhatsApp:* 235 101 07 97\n" +
+        `📲 *WhatsApp:* ${WHATSAPP_ASISTENCIA}\n` +
         "📧 *Correo Dirección General:*\n" +
         "dir_itsmisantla@itsm.edu.mx\n\n" +
-        '✨ Si deseas información más detallada escribe *"Especifico"*.',
+        "✨ Si deseas información más detallada selecciona *Especifico* en el menú.",
     };
   }
 
@@ -1182,7 +1438,7 @@ function construirRespuestaFija(texto) {
         "🕒 *Horarios de atención*\n" +
         "• Lunes a viernes: 9:00 a 14:00 y de 15:00 a 17:00 horas\n" +
         "• Sábados: 9:00 a 14:00 horas\n\n" +
-        '✨ Si deseas información más detallada escribe *"Especifico"*.',
+        "✨ Si deseas información más detallada selecciona *Especifico* en el menú.",
     };
   }
 
@@ -1211,7 +1467,7 @@ function construirRespuestaFija(texto) {
         "• Ingeniería Industrial\n" +
         "• Ingeniería en Sistemas Computacionales\n" +
         "• Ingeniería en Gestión Empresarial\n\n" +
-        '✨ Si deseas información más detallada escribe *"Especifico"*.',
+        "✨ Si deseas información más detallada selecciona *Especifico* en el menú.",
     };
   }
 
@@ -1226,7 +1482,7 @@ function construirRespuestaFija(texto) {
         "☎️ *Contactos*\n" +
         `• Subdirección Académica: ${TELEFONO_VIRTUAL} ext. ${EXTENSIONES.subdireccionAcademica}\n` +
         `• Estudios Profesionales: ${TELEFONO_BASE} ext. ${EXTENSIONES.divisionEstudios}\n\n` +
-        '✨ Si deseas información más detallada escribe *"Especifico"*.',
+        "✨ Si deseas información más detallada selecciona *Especifico* en el menú.",
     };
   }
 
@@ -1438,7 +1694,7 @@ function construirRespuestaFija(texto) {
 
 async function generarRespuestaIA(textoUsuario) {
   if (!ai) {
-    return "En este momento no puedo responder esa consulta. Intenta más tarde o escribe *menu*.";
+    return "No pude responder esa consulta en este momento.";
   }
 
   const prompt = `
@@ -1455,6 +1711,7 @@ Si te preguntan por algún departamento o por servicios escolares, incluye el te
 Si preguntan por pagos, responde que deben comunicarse con Control Escolar al teléfono ${TELEFONO_BASE}, extensiones ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}.
 Si preguntan por Educación Virtual TECNM, incluye el teléfono ${TELEFONO_VIRTUAL} ext. ${EXTENSIONES.subdireccionAcademica}, el enlace virtual.tecnm.mx y las carreras disponibles.
 Si preguntan por RegresaTec, incluye Subdirección Académica ${TELEFONO_VIRTUAL} ext. ${EXTENSIONES.subdireccionAcademica} y Estudios Profesionales ${TELEFONO_BASE} ext. ${EXTENSIONES.divisionEstudios}.
+Si el usuario muestra molestia, frustración o solicita hablar con una persona, indícale que puede comunicarse por WhatsApp al ${WHATSAPP_ASISTENCIA}.
 No inventes datos.
 No envíes al usuario al menú salvo que realmente no tengas respuesta.
 
@@ -1478,7 +1735,7 @@ ${textoUsuario}
     let texto = response.text?.trim();
 
     if (!texto) {
-      return `No cuento con ese dato confirmado en este momento. Para mayor información, puedes comunicarte al ${TELEFONO_BASE} ext. ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}.`;
+      return "No cuento con ese dato confirmado en este momento.";
     }
 
     texto = texto
@@ -1509,7 +1766,7 @@ ${textoUsuario}
     );
 
     if (pareceIngles) {
-      return `No cuento con ese dato confirmado en este momento. Para mayor información, puedes comunicarte al ${TELEFONO_BASE} ext. ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}.`;
+      return "No cuento con ese dato confirmado en este momento.";
     }
 
     return texto;
@@ -1519,7 +1776,7 @@ ${textoUsuario}
     console.error("Objeto completo:", error);
     console.error("=================================");
 
-    return `No pude responder esa consulta en este momento. Intenta de nuevo en unos segundos o comunícate al ${TELEFONO_BASE} ext. ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}.`;
+    return "No pude responder esa consulta en este momento.";
   }
 }
 
@@ -1579,9 +1836,13 @@ async function enviarImagen(numeroDestino, imageUrl, caption = "") {
     return;
   }
 
-  await guardarMensaje(numeroDestino, "bot", "image", caption || "Imagen enviada", {
-    imageUrl,
-  });
+  await guardarMensaje(
+    numeroDestino,
+    "bot",
+    "image",
+    caption || "Imagen enviada",
+    { imageUrl }
+  );
 }
 
 app.listen(puerto, () => {
