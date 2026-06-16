@@ -2,6 +2,8 @@ import express from "express";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
+import { initializeApp, cert, getApps } from "firebase-admin/app";
+import { getDatabase } from "firebase-admin/database";
 
 dotenv.config();
 
@@ -22,8 +24,48 @@ const idNumeroTelefono = process.env.PHONE_NUMBER_ID;
 const appSecret = process.env.APP_SECRET || "";
 const geminiApiKey = process.env.GEMINI_API_KEY || "";
 
+const adminUser = process.env.ADMIN_USER || "admin";
+const adminPassword = process.env.ADMIN_PASSWORD || "";
+
+const firebaseDatabaseUrl = process.env.FIREBASE_DATABASE_URL || "";
+const firebaseProjectId = process.env.FIREBASE_PROJECT_ID || "";
+const firebaseClientEmail = process.env.FIREBASE_CLIENT_EMAIL || "";
+const firebasePrivateKey = (process.env.FIREBASE_PRIVATE_KEY || "").replace(
+  /\\n/g,
+  "\n"
+);
+
 const sesiones = new Map();
 const ai = geminiApiKey ? new GoogleGenAI({ apiKey: geminiApiKey }) : null;
+
+let firebaseDb = null;
+
+try {
+  if (
+    firebaseDatabaseUrl &&
+    firebaseProjectId &&
+    firebaseClientEmail &&
+    firebasePrivateKey
+  ) {
+    if (!getApps().length) {
+      initializeApp({
+        credential: cert({
+          projectId: firebaseProjectId,
+          clientEmail: firebaseClientEmail,
+          privateKey: firebasePrivateKey,
+        }),
+        databaseURL: firebaseDatabaseUrl,
+      });
+    }
+
+    firebaseDb = getDatabase();
+    console.log("Firebase conectado correctamente.");
+  } else {
+    console.warn("Firebase no está configurado completamente.");
+  }
+} catch (error) {
+  console.error("Error conectando Firebase:", error);
+}
 
 const URL_IMAGEN_OFERTA =
   "https://drive.google.com/uc?export=view&id=1-qvuauPg0j_IrR0Z22qJXIdwZUgTlBBy";
@@ -155,6 +197,100 @@ if (!tokenVerificacion || !tokenWhatsapp || !idNumeroTelefono) {
   process.exit(1);
 }
 
+function claveFirebase(valor) {
+  return String(valor || "").replace(/[.#$\[\]\/]/g, "_");
+}
+
+async function guardarMensaje(numero, origen, tipo, contenido, extra = {}) {
+  try {
+    if (!firebaseDb || !numero) return;
+
+    const clave = claveFirebase(numero);
+    const ahora = new Date().toISOString();
+
+    const conversacionRef = firebaseDb.ref(`conversaciones/${clave}`);
+    const creadoSnap = await conversacionRef.child("creadoEn").once("value");
+
+    const actualizacion = {
+      numero,
+      actualizadoEn: ahora,
+    };
+
+    if (!creadoSnap.exists()) {
+      actualizacion.creadoEn = ahora;
+    }
+
+    await conversacionRef.update(actualizacion);
+
+    await conversacionRef.child("mensajes").push({
+      origen,
+      tipo,
+      contenido: String(contenido || ""),
+      fecha: ahora,
+      extra,
+    });
+  } catch (error) {
+    console.error("Error guardando mensaje en Firebase:", error);
+  }
+}
+
+async function leerConversacionesFirebase() {
+  try {
+    if (!firebaseDb) return [];
+
+    const snapshot = await firebaseDb.ref("conversaciones").once("value");
+    const data = snapshot.val() || {};
+
+    const lista = Object.values(data).map((conv) => {
+      const mensajesObj = conv.mensajes || {};
+
+      const mensajes = Object.values(mensajesObj).sort(
+        (a, b) => new Date(a.fecha) - new Date(b.fecha)
+      );
+
+      return {
+        numero: conv.numero || "",
+        creadoEn: conv.creadoEn || "",
+        actualizadoEn: conv.actualizadoEn || "",
+        mensajes,
+      };
+    });
+
+    lista.sort(
+      (a, b) => new Date(b.actualizadoEn) - new Date(a.actualizadoEn)
+    );
+
+    return lista;
+  } catch (error) {
+    console.error("Error leyendo conversaciones de Firebase:", error);
+    return [];
+  }
+}
+
+function validarAdmin(req, res, next) {
+  if (!adminPassword) {
+    return res
+      .status(500)
+      .send("Configura ADMIN_PASSWORD en las variables de entorno de Render.");
+  }
+
+  const auth = req.headers.authorization || "";
+  const [tipo, credenciales] = auth.split(" ");
+
+  if (tipo === "Basic" && credenciales) {
+    const [usuario, password] = Buffer.from(credenciales, "base64")
+      .toString("utf8")
+      .split(":");
+
+    if (usuario === adminUser && password === adminPassword) {
+      return next();
+    }
+  }
+
+  res.set("WWW-Authenticate", 'Basic realm="Panel del bot"');
+  return res.status(401).send("Acceso requerido.");
+}
+
 app.get("/webhook", (req, res) => {
   const modo = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
@@ -165,6 +301,375 @@ app.get("/webhook", (req, res) => {
   }
 
   return res.sendStatus(403);
+});
+
+app.get("/api/conversaciones", validarAdmin, async (req, res) => {
+  const conversaciones = await leerConversacionesFirebase();
+  res.json(conversaciones);
+});
+
+app.get("/panel", validarAdmin, (req, res) => {
+  res.type("html").send(`
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Panel de conversaciones</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f0f2f5;
+      color: #111827;
+    }
+
+    header {
+      background: #075e54;
+      color: white;
+      padding: 14px 20px;
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    .contenedor {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      height: calc(100vh - 56px);
+    }
+
+    .lista {
+      background: white;
+      border-right: 1px solid #ddd;
+      overflow-y: auto;
+    }
+
+    .buscador {
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .buscador input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      outline: none;
+    }
+
+    .contacto {
+      padding: 13px 15px;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+    }
+
+    .contacto:hover {
+      background: #f5f5f5;
+    }
+
+    .contacto.activo {
+      background: #e7f3ef;
+    }
+
+    .numero {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .ultimo {
+      color: #555;
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .fecha {
+      color: #888;
+      font-size: 11px;
+      margin-top: 5px;
+    }
+
+    .chat {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .chat-header {
+      background: white;
+      padding: 14px 18px;
+      border-bottom: 1px solid #ddd;
+      font-weight: bold;
+    }
+
+    .mensajes {
+      flex: 1;
+      padding: 18px;
+      overflow-y: auto;
+      background: #efeae2;
+    }
+
+    .burbuja {
+      max-width: 75%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+    }
+
+    .usuario {
+      background: #ffffff;
+      margin-right: auto;
+    }
+
+    .bot {
+      background: #dcf8c6;
+      margin-left: auto;
+    }
+
+    .meta {
+      font-size: 11px;
+      color: #666;
+      margin-top: 6px;
+      text-align: right;
+    }
+
+    .vacio {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: #666;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: #e5e7eb;
+      margin-bottom: 6px;
+      color: #374151;
+    }
+
+    .acciones {
+      padding: 10px 12px;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      gap: 8px;
+    }
+
+    .acciones button {
+      border: none;
+      background: #075e54;
+      color: white;
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .acciones button:hover {
+      background: #064c44;
+    }
+
+    @media (max-width: 800px) {
+      .contenedor {
+        grid-template-columns: 1fr;
+      }
+
+      .lista {
+        height: 40vh;
+        border-right: none;
+        border-bottom: 1px solid #ddd;
+      }
+
+      .chat {
+        height: calc(60vh - 56px);
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>Panel de conversaciones del bot</header>
+
+  <div class="contenedor">
+    <section class="lista">
+      <div class="buscador">
+        <input id="buscar" type="text" placeholder="Buscar número..." />
+      </div>
+
+      <div class="acciones">
+        <button onclick="cargarConversaciones()">Actualizar</button>
+      </div>
+
+      <div id="contactos"></div>
+    </section>
+
+    <section class="chat">
+      <div id="chatHeader" class="chat-header">Selecciona una conversación</div>
+      <div id="mensajes" class="mensajes">
+        <div class="vacio">Aquí aparecerán los mensajes recibidos y enviados por el bot.</div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    let conversaciones = [];
+    let seleccionado = null;
+
+    const contactosDiv = document.getElementById("contactos");
+    const mensajesDiv = document.getElementById("mensajes");
+    const chatHeader = document.getElementById("chatHeader");
+    const buscarInput = document.getElementById("buscar");
+
+    function fechaBonita(valor) {
+      try {
+        if (!valor) return "";
+        return new Date(valor).toLocaleString("es-MX", {
+          dateStyle: "short",
+          timeStyle: "short"
+        });
+      } catch {
+        return "";
+      }
+    }
+
+    function limpiarTexto(texto) {
+      if (!texto) return "";
+      return String(texto);
+    }
+
+    async function cargarConversaciones() {
+      try {
+        const res = await fetch("/api/conversaciones");
+        conversaciones = await res.json();
+
+        renderContactos();
+
+        if (seleccionado) {
+          const actual = conversaciones.find(c => c.numero === seleccionado);
+          if (actual) renderMensajes(actual);
+        }
+      } catch (error) {
+        console.error(error);
+        contactosDiv.innerHTML = '<div class="vacio">No se pudieron cargar las conversaciones.</div>';
+      }
+    }
+
+    function renderContactos() {
+      const filtro = buscarInput.value.trim().toLowerCase();
+      contactosDiv.innerHTML = "";
+
+      const filtradas = conversaciones.filter(c =>
+        String(c.numero || "").toLowerCase().includes(filtro)
+      );
+
+      if (filtradas.length === 0) {
+        const vacio = document.createElement("div");
+        vacio.className = "vacio";
+        vacio.textContent = "No hay conversaciones guardadas todavía.";
+        contactosDiv.appendChild(vacio);
+        return;
+      }
+
+      filtradas.forEach(conv => {
+        const ultimo = conv.mensajes?.[conv.mensajes.length - 1];
+
+        const div = document.createElement("div");
+        div.className = "contacto" + (conv.numero === seleccionado ? " activo" : "");
+
+        const numero = document.createElement("div");
+        numero.className = "numero";
+        numero.textContent = conv.numero;
+
+        const ultimoDiv = document.createElement("div");
+        ultimoDiv.className = "ultimo";
+        ultimoDiv.textContent = ultimo
+          ? (ultimo.origen === "bot" ? "Bot: " : "Usuario: ") + limpiarTexto(ultimo.contenido)
+          : "Sin mensajes";
+
+        const fecha = document.createElement("div");
+        fecha.className = "fecha";
+        fecha.textContent = fechaBonita(conv.actualizadoEn);
+
+        div.appendChild(numero);
+        div.appendChild(ultimoDiv);
+        div.appendChild(fecha);
+
+        div.addEventListener("click", () => {
+          seleccionado = conv.numero;
+          renderContactos();
+          renderMensajes(conv);
+        });
+
+        contactosDiv.appendChild(div);
+      });
+    }
+
+    function renderMensajes(conv) {
+      chatHeader.textContent = "Conversación con " + conv.numero;
+      mensajesDiv.innerHTML = "";
+
+      if (!conv.mensajes || conv.mensajes.length === 0) {
+        const vacio = document.createElement("div");
+        vacio.className = "vacio";
+        vacio.textContent = "Esta conversación no tiene mensajes.";
+        mensajesDiv.appendChild(vacio);
+        return;
+      }
+
+      conv.mensajes.forEach(msg => {
+        const burbuja = document.createElement("div");
+        burbuja.className = "burbuja " + (msg.origen === "bot" ? "bot" : "usuario");
+
+        const badge = document.createElement("div");
+        badge.className = "badge";
+        badge.textContent = msg.origen === "bot" ? "Bot" : "Usuario";
+
+        const contenido = document.createElement("div");
+
+        if (msg.tipo === "image" && msg.extra?.imageUrl) {
+          contenido.textContent = limpiarTexto(msg.contenido) + "\\n" + msg.extra.imageUrl;
+        } else if (msg.tipo === "video" && msg.extra?.videoUrl) {
+          contenido.textContent = limpiarTexto(msg.contenido) + "\\n" + msg.extra.videoUrl;
+        } else {
+          contenido.textContent = limpiarTexto(msg.contenido);
+        }
+
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        meta.textContent = fechaBonita(msg.fecha) + " · " + msg.tipo;
+
+        burbuja.appendChild(badge);
+        burbuja.appendChild(contenido);
+        burbuja.appendChild(meta);
+
+        mensajesDiv.appendChild(burbuja);
+      });
+
+      mensajesDiv.scrollTop = mensajesDiv.scrollHeight;
+    }
+
+    buscarInput.addEventListener("input", renderContactos);
+
+    cargarConversaciones();
+    setInterval(cargarConversaciones, 5000);
+  </script>
+</body>
+</html>
+  `);
 });
 
 function firmaValida(req) {
@@ -227,12 +732,21 @@ async function procesarMensajeEntrante(mensaje) {
       mensaje.interactive?.list_reply?.id ||
       "";
   } else {
+    await guardarMensaje(
+      numeroCliente,
+      "usuario",
+      tipo,
+      `Mensaje recibido de tipo: ${tipo}`
+    );
+
     await enviarTexto(
       numeroCliente,
       "⚠️ *Por ahora solo puedo atender mensajes de texto o respuestas del menú.*"
     );
     return;
   }
+
+  await guardarMensaje(numeroCliente, "usuario", tipo, textoRecibido);
 
   const exacto = (textoRecibido || "").trim();
   const mapaSecreto = {
@@ -402,7 +916,12 @@ function esSaludoOInicio(texto) {
   return frasesSaludo.some((frase) => texto.includes(frase));
 }
 
-function mensajeTelefonoConExtension(departamento, telefono, extension, extras = "") {
+function mensajeTelefonoConExtension(
+  departamento,
+  telefono,
+  extension,
+  extras = ""
+) {
   let mensaje =
     `☎️ *${departamento}*\n\n` +
     `• *Teléfono:* ${telefono}\n` +
@@ -436,13 +955,13 @@ async function enviarLista(numeroDestino) {
       type: "list",
       header: {
         type: "text",
-        text: "📋 Menú principal"
+        text: "📋 Menú principal",
       },
       body: {
-        text: "Selecciona una opción:"
+        text: "Selecciona una opción:",
       },
       footer: {
-        text: 'Para consultas más detalladas escribe "Especifico".'
+        text: 'Para consultas más detalladas escribe "Especifico".',
       },
       action: {
         button: "Ver opciones",
@@ -453,57 +972,65 @@ async function enviarLista(numeroDestino) {
               {
                 id: "op_btn_fichas",
                 title: "Fichas de admisión",
-                description: "Fichas, examen y requisitos"
+                description: "Fichas, examen y requisitos",
               },
               {
                 id: "op_btn_oferta",
                 title: "Oferta educativa",
-                description: "Carreras y postgrados"
+                description: "Carreras y postgrados",
               },
               {
                 id: "op_btn_redes",
                 title: "Redes sociales",
-                description: "Sitio web y redes oficiales"
+                description: "Sitio web y redes oficiales",
               },
               {
                 id: "op_btn_telefonos",
                 title: "Teléfonos y extensiones",
-                description: "Departamentos y extensiones"
+                description: "Departamentos y extensiones",
               },
               {
                 id: "op_btn_ubicacion",
-                title: "Ubicación del ITSM",
-                description: "Dirección y horarios"
+                title: "Ubicación del Instituto",
+                description: "Dirección y horarios",
               },
               {
                 id: "op_btn_virtual",
                 title: "Educación Virtual TECNM",
-                description: "Modalidad virtual y carreras"
+                description: "Modalidad virtual y carreras",
               },
               {
                 id: "op_btn_regresatec",
                 title: "RegresaTec",
-                description: "Información y contacto"
-              }
-            ]
-          }
-        ]
-      }
-    }
+                description: "Información y contacto",
+              },
+            ],
+          },
+        ],
+      },
+    },
   };
 
   const respuesta = await fetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${tokenWhatsapp}`,
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
 
   if (!respuesta.ok) {
     console.error("Error enviando lista:", await respuesta.text());
+    return;
   }
+
+  await guardarMensaje(
+    numeroDestino,
+    "bot",
+    "interactive",
+    "Menú principal enviado"
+  );
 }
 
 function construirRespuestaFija(texto) {
@@ -516,7 +1043,7 @@ function construirRespuestaFija(texto) {
       "ficha",
       "inscripciones",
       "inscripcion",
-      "inscripción"
+      "inscripción",
     ])
   ) {
     return {
@@ -533,10 +1060,9 @@ function construirRespuestaFija(texto) {
         "📄 *Requisitos para el examen*\n" +
         "• CURP\n" +
         "• Certificado o Constancia de Bachillerato con calificaciones\n\n" +
-        '✨ Si deseas información más detallada escribe *"Especifico"*.'
-      ,
+        '✨ Si deseas información más detallada escribe *"Especifico"*.',
       imageUrl: URL_IMAGEN_FICHAS,
-      caption: "📝 Fichas de admisión"
+      caption: "📝 Fichas de admisión",
     };
   }
 
@@ -550,7 +1076,7 @@ function construirRespuestaFija(texto) {
       "posgrados",
       "maestrias",
       "maestrías",
-      "doctorado"
+      "doctorado",
     ])
   ) {
     return {
@@ -573,10 +1099,9 @@ function construirRespuestaFija(texto) {
         "• Maestría en Sistemas Computacionales\n" +
         "• Maestría en Ciencias de la Ingeniería\n" +
         "• Doctorado en Ciencias de la Ingeniería\n\n" +
-        '✨ Si deseas información más detallada escribe *"Especifico"*.'
-      ,
+        '✨ Si deseas información más detallada escribe *"Especifico"*.',
       imageUrl: URL_IMAGEN_OFERTA,
-      caption: "🎓 Oferta educativa del Instituto Tecnológico Superior de Misantla"
+      caption: "🎓 Oferta educativa del Instituto Tecnológico Superior de Misantla",
     };
   }
 
@@ -589,7 +1114,7 @@ function construirRespuestaFija(texto) {
       "página oficial",
       "facebook",
       "instagram",
-      "tiktok"
+      "tiktok",
     ])
   ) {
     return {
@@ -604,7 +1129,7 @@ function construirRespuestaFija(texto) {
         "https://www.instagram.com/tecnmmisantla/\n\n" +
         "🎵 *TikTok*\n" +
         "https://www.tiktok.com/@tecnmmisantla\n\n" +
-        '✨ *Si deseas información más detallada escribe "Especifico".*'
+        '✨ *Si deseas información más detallada escribe "Especifico".*',
     };
   }
 
@@ -615,7 +1140,7 @@ function construirRespuestaFija(texto) {
       "teléfonos y extensiones",
       "telefonos",
       "teléfonos",
-      "extensiones"
+      "extensiones",
     ])
   ) {
     return {
@@ -636,7 +1161,7 @@ function construirRespuestaFija(texto) {
         "📲 *WhatsApp:* 235 101 07 97\n" +
         "📧 *Correo Dirección General:*\n" +
         "dir_itsmisantla@itsm.edu.mx\n\n" +
-        '✨ Si deseas información más detallada escribe *"Especifico"*.'
+        '✨ Si deseas información más detallada escribe *"Especifico"*.',
     };
   }
 
@@ -645,18 +1170,20 @@ function construirRespuestaFija(texto) {
     contieneAlgunaFrase(texto, [
       "ubicacion del itsm",
       "ubicación del itsm",
+      "ubicacion del instituto",
+      "ubicación del instituto",
       "ubicacion",
       "ubicación",
       "direccion",
       "dirección",
       "mapa",
-      "google maps"
+      "google maps",
     ])
   ) {
     return {
       tipo: "texto",
       mensaje:
-        "📍 *UBICACIÓN DEL ITSM*\n\n" +
+        "📍 *UBICACIÓN DEL INSTITUTO TECNOLÓGICO SUPERIOR DE MISANTLA*\n\n" +
         "• *Dirección:* Km. 1.8 Carretera a Loma del Cojolite\n" +
         "• *C.P.:* 93850\n" +
         "• *Ciudad:* Misantla, Veracruz, México\n\n" +
@@ -665,7 +1192,7 @@ function construirRespuestaFija(texto) {
         "🕒 *Horarios de atención*\n" +
         "• Lunes a viernes: 9:00 a 14:00 y de 15:00 a 17:00 horas\n" +
         "• Sábados: 9:00 a 14:00 horas\n\n" +
-        '✨ Si deseas información más detallada escribe *"Especifico"*.'
+        '✨ Si deseas información más detallada escribe *"Especifico"*.',
     };
   }
 
@@ -677,7 +1204,7 @@ function construirRespuestaFija(texto) {
       "educacion virtual",
       "educación virtual",
       "virtual tecnm",
-      "modalidad virtual"
+      "modalidad virtual",
     ])
   ) {
     return {
@@ -694,17 +1221,13 @@ function construirRespuestaFija(texto) {
         "• Ingeniería Industrial\n" +
         "• Ingeniería en Sistemas Computacionales\n" +
         "• Ingeniería en Gestión Empresarial\n\n" +
-        '✨ Si deseas información más detallada escribe *"Especifico"*.'
+        '✨ Si deseas información más detallada escribe *"Especifico"*.',
     };
   }
 
   if (
     texto === "op_btn_regresatec" ||
-    contieneAlgunaFrase(texto, [
-      "regresatec",
-      "regresa tec",
-      "regresa"
-    ])
+    contieneAlgunaFrase(texto, ["regresatec", "regresa tec", "regresa"])
   ) {
     return {
       tipo: "texto",
@@ -713,7 +1236,7 @@ function construirRespuestaFija(texto) {
         "☎️ *Contactos*\n" +
         `• Subdirección Académica: ${TELEFONO_VIRTUAL} ext. ${EXTENSIONES.subdireccionAcademica}\n` +
         `• Estudios Profesionales: ${TELEFONO_BASE} ext. ${EXTENSIONES.divisionEstudios}\n\n` +
-        '✨ Si deseas información más detallada escribe *"Especifico"*.'
+        '✨ Si deseas información más detallada escribe *"Especifico"*.',
     };
   }
 
@@ -725,7 +1248,7 @@ function construirRespuestaFija(texto) {
       "numero de direccion",
       "número de dirección",
       "extension de direccion",
-      "extensión de dirección"
+      "extensión de dirección",
     ])
   ) {
     return {
@@ -735,7 +1258,7 @@ function construirRespuestaFija(texto) {
         TELEFONO_BASE,
         EXTENSIONES.direccion,
         "• Correo: dir_itsmisantla@itsm.edu.mx"
-      )
+      ),
     };
   }
 
@@ -750,7 +1273,7 @@ function construirRespuestaFija(texto) {
       "telefono de servicios escolares",
       "teléfono de servicios escolares",
       "numero de servicios escolares",
-      "número de servicios escolares"
+      "número de servicios escolares",
     ])
   ) {
     return {
@@ -758,7 +1281,7 @@ function construirRespuestaFija(texto) {
       mensaje:
         "☎️ *CONTROL ESCOLAR / SERVICIOS ESCOLARES*\n\n" +
         `• *Teléfono:* ${TELEFONO_BASE}\n` +
-        `• *Extensiones:* ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}`
+        `• *Extensiones:* ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}`,
     };
   }
 
@@ -767,7 +1290,7 @@ function construirRespuestaFija(texto) {
       "jefes de carrera",
       "jefe de carrera",
       "jefatura",
-      "coordinacion academica"
+      "coordinacion academica",
     ])
   ) {
     return {
@@ -776,7 +1299,7 @@ function construirRespuestaFija(texto) {
         "Jefes de Carrera",
         TELEFONO_BASE,
         EXTENSIONES.jefesCarrera
-      )
+      ),
     };
   }
 
@@ -785,7 +1308,7 @@ function construirRespuestaFija(texto) {
       "enfermeria",
       "enfermería",
       "telefono de enfermeria",
-      "teléfono de enfermería"
+      "teléfono de enfermería",
     ])
   ) {
     return {
@@ -794,16 +1317,12 @@ function construirRespuestaFija(texto) {
         "Enfermería",
         TELEFONO_BASE,
         EXTENSIONES.enfermeria
-      )
+      ),
     };
   }
 
   if (
-    contieneAlgunaFrase(texto, [
-      "caja",
-      "telefono de caja",
-      "teléfono de caja"
-    ])
+    contieneAlgunaFrase(texto, ["caja", "telefono de caja", "teléfono de caja"])
   ) {
     return {
       tipo: "texto",
@@ -811,7 +1330,7 @@ function construirRespuestaFija(texto) {
         "Caja",
         TELEFONO_BASE,
         EXTENSIONES.caja
-      )
+      ),
     };
   }
 
@@ -819,7 +1338,7 @@ function construirRespuestaFija(texto) {
     contieneAlgunaFrase(texto, [
       "servicio social",
       "telefono de servicio social",
-      "teléfono de servicio social"
+      "teléfono de servicio social",
     ])
   ) {
     return {
@@ -828,7 +1347,7 @@ function construirRespuestaFija(texto) {
         "Servicio Social",
         TELEFONO_BASE,
         EXTENSIONES.servicioSocial
-      )
+      ),
     };
   }
 
@@ -837,7 +1356,7 @@ function construirRespuestaFija(texto) {
       "residencias",
       "residencia profesional",
       "telefono de residencias",
-      "teléfono de residencias"
+      "teléfono de residencias",
     ])
   ) {
     return {
@@ -846,7 +1365,7 @@ function construirRespuestaFija(texto) {
         "Residencias",
         TELEFONO_BASE,
         EXTENSIONES.residencias
-      )
+      ),
     };
   }
 
@@ -856,7 +1375,7 @@ function construirRespuestaFija(texto) {
       "división de estudios",
       "telefono de division de estudios",
       "teléfono de división de estudios",
-      "estudios profesionales"
+      "estudios profesionales",
     ])
   ) {
     return {
@@ -865,7 +1384,7 @@ function construirRespuestaFija(texto) {
         "División de Estudios / Estudios Profesionales",
         TELEFONO_BASE,
         EXTENSIONES.divisionEstudios
-      )
+      ),
     };
   }
 
@@ -876,7 +1395,7 @@ function construirRespuestaFija(texto) {
       "telefono de vinculacion",
       "teléfono de vinculación",
       "numero de vinculacion",
-      "número de vinculación"
+      "número de vinculación",
     ])
   ) {
     return {
@@ -885,7 +1404,7 @@ function construirRespuestaFija(texto) {
         "Vinculación",
         TELEFONO_BASE,
         EXTENSIONES.vinculacion
-      )
+      ),
     };
   }
 
@@ -894,7 +1413,7 @@ function construirRespuestaFija(texto) {
       "subdireccion academica",
       "subdirección académica",
       "telefono de subdireccion academica",
-      "teléfono de subdirección académica"
+      "teléfono de subdirección académica",
     ])
   ) {
     return {
@@ -903,7 +1422,7 @@ function construirRespuestaFija(texto) {
         "Subdirección Académica",
         TELEFONO_VIRTUAL,
         EXTENSIONES.subdireccionAcademica
-      )
+      ),
     };
   }
 
@@ -913,14 +1432,14 @@ function construirRespuestaFija(texto) {
       "precios",
       "costos",
       "tramites",
-      "trámites"
+      "trámites",
     ])
   ) {
     return {
       tipo: "texto",
       mensaje:
         "💳 *PAGOS*\n\n" +
-        `Para pagos, favor de comunicarte con *Control Escolar* al teléfono ${TELEFONO_BASE} con extensión *${EXTENSIONES.controlEscolar1}* o *${EXTENSIONES.controlEscolar2}*.`
+        `Para pagos, favor de comunicarte con *Control Escolar* al teléfono ${TELEFONO_BASE} con extensión *${EXTENSIONES.controlEscolar1}* o *${EXTENSIONES.controlEscolar2}*.`,
     };
   }
 
@@ -962,8 +1481,8 @@ ${textoUsuario}
       contents: [prompt],
       config: {
         temperature: 0.15,
-        maxOutputTokens: 450
-      }
+        maxOutputTokens: 450,
+      },
     });
 
     let texto = response.text?.trim();
@@ -992,7 +1511,7 @@ ${textoUsuario}
       "source",
       "retrieved",
       "mentions",
-      "highly probable"
+      "highly probable",
     ];
 
     const pareceIngles = frasesIngles.some((frase) =>
@@ -1022,22 +1541,25 @@ async function enviarTexto(numeroDestino, texto) {
     to: numeroDestino,
     type: "text",
     text: {
-      body: texto
-    }
+      body: texto,
+    },
   };
 
   const respuesta = await fetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${tokenWhatsapp}`,
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
 
   if (!respuesta.ok) {
     console.error("Error enviando texto:", await respuesta.text());
+    return;
   }
+
+  await guardarMensaje(numeroDestino, "bot", "text", texto);
 }
 
 async function enviarImagen(numeroDestino, imageUrl, caption = "") {
@@ -1049,22 +1571,27 @@ async function enviarImagen(numeroDestino, imageUrl, caption = "") {
     type: "image",
     image: {
       link: imageUrl,
-      caption
-    }
+      caption,
+    },
   };
 
   const respuesta = await fetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${tokenWhatsapp}`,
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
 
   if (!respuesta.ok) {
     console.error("Error enviando imagen:", await respuesta.text());
+    return;
   }
+
+  await guardarMensaje(numeroDestino, "bot", "image", caption || "Imagen enviada", {
+    imageUrl,
+  });
 }
 
 async function enviarVideo(numeroDestino, videoUrl, caption = "") {
@@ -1076,24 +1603,29 @@ async function enviarVideo(numeroDestino, videoUrl, caption = "") {
     type: "video",
     video: {
       link: videoUrl,
-      caption
-    }
+      caption,
+    },
   };
 
   const respuesta = await fetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${tokenWhatsapp}`,
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
 
   if (!respuesta.ok) {
     const detalle = await respuesta.text();
     console.error("Error enviando video:", detalle);
     await enviarTexto(numeroDestino, videoUrl);
+    return;
   }
+
+  await guardarMensaje(numeroDestino, "bot", "video", caption || "Video enviado", {
+    videoUrl,
+  });
 }
 
 app.listen(puerto, () => {
