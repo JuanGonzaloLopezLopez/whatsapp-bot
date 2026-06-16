@@ -1,6 +1,7 @@
 import express from "express";
 import crypto from "crypto";
 import dotenv from "dotenv";
+import multer from "multer";
 import { GoogleGenAI } from "@google/genai";
 import { initializeApp, cert, getApps } from "firebase-admin/app";
 import { getDatabase } from "firebase-admin/database";
@@ -16,6 +17,13 @@ app.use(
     },
   })
 );
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 15 * 1024 * 1024,
+  },
+});
 
 const puerto = Number(process.env.PORT || 3000);
 const tokenVerificacion = process.env.VERIFY_TOKEN;
@@ -206,6 +214,12 @@ async function guardarMensaje(numero, origen, tipo, contenido, extra = {}) {
       actualizacion.creadoEn = ahora;
     }
 
+    if (origen === "usuario") {
+      const nuevosSnap = await conversacionRef.child("mensajesNuevos").once("value");
+      const actuales = Number(nuevosSnap.val() || 0);
+      actualizacion.mensajesNuevos = actuales + 1;
+    }
+
     await conversacionRef.update(actualizacion);
 
     await conversacionRef.child("mensajes").push({
@@ -242,6 +256,8 @@ async function leerConversacionesFirebase() {
         modoHumano: Boolean(conv.modoHumano),
         tomadoPor: conv.tomadoPor || "",
         tomadoEn: conv.tomadoEn || "",
+        requiereAtencion: Boolean(conv.requiereAtencion),
+        mensajesNuevos: Number(conv.mensajesNuevos || 0),
         mensajes,
       };
     });
@@ -288,6 +304,34 @@ async function estaEnModoHumano(numero) {
   }
 }
 
+async function marcarAtencionPendiente(numero, estado) {
+  try {
+    if (!firebaseDb || !numero) return;
+
+    await firebaseDb.ref(`conversaciones/${claveFirebase(numero)}`).update({
+      requiereAtencion: Boolean(estado),
+      actualizadoEn: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error marcando atención pendiente:", error);
+  }
+}
+
+async function marcarLeidoFirebase(clave) {
+  try {
+    if (!firebaseDb || !clave) return false;
+
+    await firebaseDb.ref(`conversaciones/${claveFirebase(clave)}`).update({
+      mensajesNuevos: 0,
+    });
+
+    return true;
+  } catch (error) {
+    console.error("Error marcando conversación como leída:", error);
+    return false;
+  }
+}
+
 async function tomarChatFirebase(clave) {
   try {
     if (!firebaseDb || !clave) return false;
@@ -296,6 +340,7 @@ async function tomarChatFirebase(clave) {
       modoHumano: true,
       tomadoPor: adminUser,
       tomadoEn: new Date().toISOString(),
+      mensajesNuevos: 0,
       actualizadoEn: new Date().toISOString(),
     });
 
@@ -377,6 +422,22 @@ app.get("/api/conversaciones", validarAdmin, async (req, res) => {
   res.json(conversaciones);
 });
 
+app.post("/api/conversaciones/:clave/leer", validarAdmin, async (req, res) => {
+  const ok = await marcarLeidoFirebase(req.params.clave);
+
+  if (!ok) {
+    return res.status(500).json({
+      ok: false,
+      mensaje: "No se pudo marcar como leído.",
+    });
+  }
+
+  return res.json({
+    ok: true,
+    mensaje: "Conversación marcada como leída.",
+  });
+});
+
 app.delete("/api/conversaciones/:clave", validarAdmin, async (req, res) => {
   const eliminado = await eliminarConversacionFirebase(req.params.clave);
 
@@ -425,60 +486,100 @@ app.post("/api/conversaciones/:clave/liberar", validarAdmin, async (req, res) =>
   });
 });
 
-app.post("/api/conversaciones/:clave/mensaje", validarAdmin, async (req, res) => {
-  try {
-    const clave = req.params.clave;
-    const texto = String(req.body?.mensaje || "").trim();
+app.post(
+  "/api/conversaciones/:clave/mensaje",
+  validarAdmin,
+  upload.single("archivo"),
+  async (req, res) => {
+    try {
+      const clave = req.params.clave;
+      const texto = String(req.body?.mensaje || "").trim();
+      const archivo = req.file || null;
 
-    if (!texto) {
-      return res.status(400).json({
-        ok: false,
-        mensaje: "El mensaje no puede estar vacío.",
+      if (!texto && !archivo) {
+        return res.status(400).json({
+          ok: false,
+          mensaje: "Escribe un mensaje o selecciona un archivo.",
+        });
+      }
+
+      const conversacion = await obtenerConversacionPorClave(clave);
+
+      if (!conversacion || !conversacion.numero) {
+        return res.status(404).json({
+          ok: false,
+          mensaje: "No se encontró la conversación.",
+        });
+      }
+
+      if (!conversacion.modoHumano) {
+        return res.status(400).json({
+          ok: false,
+          mensaje: "Primero debes tomar el chat para responder manualmente.",
+        });
+      }
+
+      if (archivo) {
+        const resultado = await enviarArchivoWhatsApp(
+          conversacion.numero,
+          archivo,
+          texto
+        );
+
+        if (!resultado.ok) {
+          return res.status(500).json({
+            ok: false,
+            mensaje: "No se pudo enviar el archivo por WhatsApp.",
+          });
+        }
+
+        await guardarMensaje(
+          conversacion.numero,
+          "admin",
+          resultado.tipo,
+          texto || `Archivo enviado: ${archivo.originalname}`,
+          {
+            enviadoPor: adminUser,
+            nombreArchivo: archivo.originalname,
+            mimeType: archivo.mimetype,
+            mediaId: resultado.mediaId || "",
+          }
+        );
+      } else {
+        const enviado = await enviarTextoWhatsApp(conversacion.numero, texto);
+
+        if (!enviado) {
+          return res.status(500).json({
+            ok: false,
+            mensaje: "No se pudo enviar el mensaje por WhatsApp.",
+          });
+        }
+
+        await guardarMensaje(conversacion.numero, "admin", "text", texto, {
+          enviadoPor: adminUser,
+        });
+      }
+
+      await firebaseDb.ref(`conversaciones/${claveFirebase(clave)}`).update({
+        requiereAtencion: false,
+        mensajesNuevos: 0,
+        actualizadoEn: new Date().toISOString(),
       });
-    }
 
-    const conversacion = await obtenerConversacionPorClave(clave);
-
-    if (!conversacion || !conversacion.numero) {
-      return res.status(404).json({
-        ok: false,
-        mensaje: "No se encontró la conversación.",
+      return res.json({
+        ok: true,
+        mensaje: "Mensaje enviado correctamente.",
       });
-    }
+    } catch (error) {
+      console.error("Error enviando mensaje manual:", error);
 
-    if (!conversacion.modoHumano) {
-      return res.status(400).json({
-        ok: false,
-        mensaje: "Primero debes tomar el chat para responder manualmente.",
-      });
-    }
-
-    const enviado = await enviarTextoWhatsApp(conversacion.numero, texto);
-
-    if (!enviado) {
       return res.status(500).json({
         ok: false,
-        mensaje: "No se pudo enviar el mensaje por WhatsApp.",
+        mensaje: "Ocurrió un error al enviar el mensaje.",
       });
     }
-
-    await guardarMensaje(conversacion.numero, "admin", "text", texto, {
-      enviadoPor: adminUser,
-    });
-
-    return res.json({
-      ok: true,
-      mensaje: "Mensaje enviado correctamente.",
-    });
-  } catch (error) {
-    console.error("Error enviando mensaje manual:", error);
-
-    return res.status(500).json({
-      ok: false,
-      mensaje: "Ocurrió un error al enviar el mensaje.",
-    });
   }
-});
+);
 
 app.get("/panel", validarAdmin, (req, res) => {
   res.type("html").send(`
@@ -494,36 +595,50 @@ app.get("/panel", validarAdmin, (req, res) => {
       box-sizing: border-box;
     }
 
-    body {
+    html, body {
+      height: 100%;
       margin: 0;
+      overflow: hidden;
       font-family: Arial, sans-serif;
       background: #f0f2f5;
       color: #111827;
     }
 
     header {
+      height: 56px;
       background: #075e54;
       color: white;
       padding: 14px 20px;
       font-size: 20px;
       font-weight: bold;
+      display: flex;
+      align-items: center;
     }
 
     .contenedor {
       display: grid;
-      grid-template-columns: 340px 1fr;
+      grid-template-columns: 350px 1fr;
       height: calc(100vh - 56px);
+      min-height: 0;
     }
 
     .lista {
       background: white;
       border-right: 1px solid #ddd;
-      overflow-y: auto;
+      height: 100%;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .lista-superior {
+      flex-shrink: 0;
+      background: white;
+      border-bottom: 1px solid #eee;
     }
 
     .buscador {
       padding: 12px;
-      border-bottom: 1px solid #eee;
     }
 
     .buscador input {
@@ -534,10 +649,37 @@ app.get("/panel", validarAdmin, (req, res) => {
       outline: none;
     }
 
+    .acciones {
+      padding: 0 12px 12px 12px;
+      display: flex;
+      gap: 8px;
+    }
+
+    .acciones button {
+      border: none;
+      background: #075e54;
+      color: white;
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .acciones button:hover {
+      background: #064c44;
+    }
+
+    #contactos {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+    }
+
     .contacto {
       padding: 13px 15px;
       border-bottom: 1px solid #eee;
       cursor: pointer;
+      position: relative;
     }
 
     .contacto:hover {
@@ -548,9 +690,19 @@ app.get("/panel", validarAdmin, (req, res) => {
       background: #e7f3ef;
     }
 
+    .contacto.requiere {
+      background: #dcfce7;
+      border-left: 5px solid #16a34a;
+    }
+
+    .contacto.requiere.activo {
+      background: #bbf7d0;
+    }
+
     .numero {
       font-weight: bold;
       margin-bottom: 5px;
+      padding-right: 35px;
     }
 
     .ultimo {
@@ -567,6 +719,23 @@ app.get("/panel", validarAdmin, (req, res) => {
       margin-top: 5px;
     }
 
+    .contador {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      min-width: 22px;
+      height: 22px;
+      padding: 0 7px;
+      border-radius: 999px;
+      background: #16a34a;
+      color: white;
+      font-size: 12px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
     .estado-humano {
       display: inline-block;
       background: #f97316;
@@ -577,13 +746,27 @@ app.get("/panel", validarAdmin, (req, res) => {
       margin-top: 6px;
     }
 
+    .estado-atencion {
+      display: inline-block;
+      background: #16a34a;
+      color: white;
+      font-size: 11px;
+      padding: 3px 7px;
+      border-radius: 999px;
+      margin-top: 6px;
+      margin-left: 4px;
+    }
+
     .chat {
+      height: 100%;
+      min-height: 0;
       display: flex;
       flex-direction: column;
-      height: 100%;
+      background: #efeae2;
     }
 
     .chat-header {
+      flex-shrink: 0;
       background: white;
       padding: 12px 18px;
       border-bottom: 1px solid #ddd;
@@ -653,6 +836,7 @@ app.get("/panel", validarAdmin, (req, res) => {
 
     .mensajes {
       flex: 1;
+      min-height: 0;
       padding: 18px;
       overflow-y: auto;
       background: #efeae2;
@@ -711,40 +895,21 @@ app.get("/panel", validarAdmin, (req, res) => {
       color: #374151;
     }
 
-    .acciones {
-      padding: 10px 12px;
-      border-bottom: 1px solid #eee;
-      display: flex;
-      gap: 8px;
-    }
-
-    .acciones button {
-      border: none;
-      background: #075e54;
-      color: white;
-      padding: 8px 10px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 13px;
-    }
-
-    .acciones button:hover {
-      background: #064c44;
-    }
-
     .respuesta {
+      flex-shrink: 0;
       background: white;
       border-top: 1px solid #ddd;
-      padding: 12px;
+      padding: 10px;
       display: none;
       gap: 8px;
-      align-items: flex-end;
+      align-items: center;
     }
 
     .respuesta textarea {
       flex: 1;
       resize: none;
-      height: 64px;
+      height: 54px;
+      max-height: 90px;
       padding: 10px;
       border: 1px solid #ccc;
       border-radius: 8px;
@@ -757,7 +922,47 @@ app.get("/panel", validarAdmin, (req, res) => {
       color: #777;
     }
 
-    @media (max-width: 800px) {
+    .archivo-zona {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 160px;
+      max-width: 220px;
+    }
+
+    .archivo-label {
+      background: #e5e7eb;
+      color: #111827;
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: center;
+      font-size: 13px;
+    }
+
+    .archivo-label:hover {
+      background: #d1d5db;
+    }
+
+    .archivo-label.deshabilitado {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    #archivoManual {
+      display: none;
+    }
+
+    #nombreArchivo {
+      font-size: 11px;
+      color: #555;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 210px;
+    }
+
+    @media (max-width: 850px) {
       .contenedor {
         grid-template-columns: 1fr;
       }
@@ -784,6 +989,20 @@ app.get("/panel", validarAdmin, (req, res) => {
       .chat-actions {
         justify-content: flex-start;
       }
+
+      .respuesta {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .archivo-zona {
+        max-width: none;
+        width: 100%;
+      }
+
+      #nombreArchivo {
+        max-width: none;
+      }
     }
   </style>
 </head>
@@ -792,12 +1011,14 @@ app.get("/panel", validarAdmin, (req, res) => {
 
   <div class="contenedor">
     <section class="lista">
-      <div class="buscador">
-        <input id="buscar" type="text" placeholder="Buscar número..." />
-      </div>
+      <div class="lista-superior">
+        <div class="buscador">
+          <input id="buscar" type="text" placeholder="Buscar número..." />
+        </div>
 
-      <div class="acciones">
-        <button onclick="cargarConversaciones()">Actualizar</button>
+        <div class="acciones">
+          <button onclick="cargarConversaciones()">Actualizar</button>
+        </div>
       </div>
 
       <div id="contactos"></div>
@@ -823,6 +1044,18 @@ app.get("/panel", validarAdmin, (req, res) => {
 
       <div id="respuestaBox" class="respuesta">
         <textarea id="mensajeManual" placeholder="Toma el chat para responder manualmente..." disabled></textarea>
+
+        <div class="archivo-zona">
+          <label id="archivoLabel" class="archivo-label deshabilitado" for="archivoManual">Adjuntar archivo</label>
+          <input
+            id="archivoManual"
+            type="file"
+            accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+            disabled
+          />
+          <div id="nombreArchivo">Sin archivo</div>
+        </div>
+
         <button id="btnEnviarManual" class="btn btn-enviar" onclick="enviarMensajeManual()" disabled>Enviar</button>
       </div>
     </section>
@@ -843,6 +1076,9 @@ app.get("/panel", validarAdmin, (req, res) => {
     const respuestaBox = document.getElementById("respuestaBox");
     const mensajeManual = document.getElementById("mensajeManual");
     const btnEnviarManual = document.getElementById("btnEnviarManual");
+    const archivoManual = document.getElementById("archivoManual");
+    const nombreArchivo = document.getElementById("nombreArchivo");
+    const archivoLabel = document.getElementById("archivoLabel");
 
     const buscarInput = document.getElementById("buscar");
 
@@ -879,6 +1115,9 @@ app.get("/panel", validarAdmin, (req, res) => {
           const actual = conversacionActual();
           if (actual) {
             renderMensajes(actual);
+            if (actual.mensajesNuevos > 0) {
+              await marcarComoLeido(actual);
+            }
           } else {
             limpiarSeleccion();
           }
@@ -898,6 +1137,8 @@ app.get("/panel", validarAdmin, (req, res) => {
       btnEliminar.style.display = "none";
       respuestaBox.style.display = "none";
       mensajeManual.value = "";
+      archivoManual.value = "";
+      nombreArchivo.textContent = "Sin archivo";
       mensajesDiv.innerHTML = '<div class="vacio">Aquí aparecerán los mensajes recibidos y enviados por el bot.</div>';
     }
 
@@ -921,7 +1162,10 @@ app.get("/panel", validarAdmin, (req, res) => {
         const ultimo = conv.mensajes?.[conv.mensajes.length - 1];
 
         const div = document.createElement("div");
-        div.className = "contacto" + (conv.numero === seleccionado ? " activo" : "");
+        div.className =
+          "contacto" +
+          (conv.numero === seleccionado ? " activo" : "") +
+          (conv.requiereAtencion ? " requiere" : "");
 
         const numero = document.createElement("div");
         numero.className = "numero";
@@ -946,6 +1190,13 @@ app.get("/panel", validarAdmin, (req, res) => {
         div.appendChild(ultimoDiv);
         div.appendChild(fecha);
 
+        if (conv.mensajesNuevos > 0) {
+          const contador = document.createElement("div");
+          contador.className = "contador";
+          contador.textContent = conv.mensajesNuevos > 99 ? "99+" : conv.mensajesNuevos;
+          div.appendChild(contador);
+        }
+
         if (conv.modoHumano) {
           const estado = document.createElement("div");
           estado.className = "estado-humano";
@@ -953,14 +1204,37 @@ app.get("/panel", validarAdmin, (req, res) => {
           div.appendChild(estado);
         }
 
-        div.addEventListener("click", () => {
+        if (conv.requiereAtencion) {
+          const atencion = document.createElement("div");
+          atencion.className = "estado-atencion";
+          atencion.textContent = "Solicitó atención";
+          div.appendChild(atencion);
+        }
+
+        div.addEventListener("click", async () => {
           seleccionado = conv.numero;
           renderContactos();
           renderMensajes(conv);
+          await marcarComoLeido(conv);
         });
 
         contactosDiv.appendChild(div);
       });
+    }
+
+    async function marcarComoLeido(conv) {
+      if (!conv || !conv.clave) return;
+
+      try {
+        await fetch("/api/conversaciones/" + encodeURIComponent(conv.clave) + "/leer", {
+          method: "POST"
+        });
+
+        conv.mensajesNuevos = 0;
+        renderContactos();
+      } catch (error) {
+        console.error(error);
+      }
     }
 
     function renderMensajes(conv) {
@@ -968,6 +1242,8 @@ app.get("/panel", validarAdmin, (req, res) => {
 
       if (conv.modoHumano) {
         chatHeaderSubtitle.textContent = "Modo humano activo. El bot no responderá en esta conversación.";
+      } else if (conv.requiereAtencion) {
+        chatHeaderSubtitle.textContent = "El usuario solicitó atención de una persona.";
       } else {
         chatHeaderSubtitle.textContent = "Chatbot activo. El bot responderá automáticamente.";
       }
@@ -979,6 +1255,14 @@ app.get("/panel", validarAdmin, (req, res) => {
       respuestaBox.style.display = "flex";
       mensajeManual.disabled = !conv.modoHumano;
       btnEnviarManual.disabled = !conv.modoHumano;
+      archivoManual.disabled = !conv.modoHumano;
+
+      if (conv.modoHumano) {
+        archivoLabel.classList.remove("deshabilitado");
+      } else {
+        archivoLabel.classList.add("deshabilitado");
+      }
+
       mensajeManual.placeholder = conv.modoHumano
         ? "Escribir mensaje..."
         : "Toma el chat para responder manualmente...";
@@ -1017,7 +1301,11 @@ app.get("/panel", validarAdmin, (req, res) => {
 
         const contenido = document.createElement("div");
 
-        if (msg.tipo === "image" && msg.extra?.imageUrl) {
+        if (msg.tipo === "image" && msg.extra?.nombreArchivo) {
+          contenido.textContent = limpiarTexto(msg.contenido) + "\\nImagen: " + msg.extra.nombreArchivo;
+        } else if (msg.tipo === "document" && msg.extra?.nombreArchivo) {
+          contenido.textContent = limpiarTexto(msg.contenido) + "\\nDocumento: " + msg.extra.nombreArchivo;
+        } else if (msg.tipo === "image" && msg.extra?.imageUrl) {
           contenido.textContent = limpiarTexto(msg.contenido) + "\\n" + msg.extra.imageUrl;
         } else {
           contenido.textContent = limpiarTexto(msg.contenido);
@@ -1112,21 +1400,26 @@ app.get("/panel", validarAdmin, (req, res) => {
       if (!conv) return;
 
       const texto = mensajeManual.value.trim();
+      const archivo = archivoManual.files[0] || null;
 
-      if (!texto) {
-        alert("Escribe un mensaje antes de enviar.");
+      if (!texto && !archivo) {
+        alert("Escribe un mensaje o selecciona un archivo.");
         return;
       }
 
       try {
         btnEnviarManual.disabled = true;
 
+        const formData = new FormData();
+        formData.append("mensaje", texto);
+
+        if (archivo) {
+          formData.append("archivo", archivo);
+        }
+
         const res = await fetch("/api/conversaciones/" + encodeURIComponent(conv.clave) + "/mensaje", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ mensaje: texto })
+          body: formData
         });
 
         const data = await res.json();
@@ -1137,6 +1430,8 @@ app.get("/panel", validarAdmin, (req, res) => {
         }
 
         mensajeManual.value = "";
+        archivoManual.value = "";
+        nombreArchivo.textContent = "Sin archivo";
         await cargarConversaciones();
       } catch (error) {
         console.error(error);
@@ -1152,6 +1447,26 @@ app.get("/panel", validarAdmin, (req, res) => {
         event.preventDefault();
         enviarMensajeManual();
       }
+    });
+
+    archivoManual.addEventListener("change", () => {
+      const archivo = archivoManual.files[0];
+
+      if (!archivo) {
+        nombreArchivo.textContent = "Sin archivo";
+        return;
+      }
+
+      const mb = archivo.size / 1024 / 1024;
+
+      if (mb > 15) {
+        alert("El archivo supera el límite de 15 MB.");
+        archivoManual.value = "";
+        nombreArchivo.textContent = "Sin archivo";
+        return;
+      }
+
+      nombreArchivo.textContent = archivo.name;
     });
 
     buscarInput.addEventListener("input", renderContactos);
@@ -1306,6 +1621,7 @@ async function procesarMensajeEntrante(mensaje) {
   }
 
   if (detectarSolicitudHumana(textoNormalizado)) {
+    await marcarAtencionPendiente(numeroCliente, true);
     await enviarTexto(numeroCliente, mensajeAsistenciaReal());
     return;
   }
@@ -1314,6 +1630,7 @@ async function procesarMensajeEntrante(mensaje) {
 
   if (sesionRefrescada.modoEspecifico) {
     if (esConsultaDemasiadoAmbigua(textoNormalizado)) {
+      await marcarAtencionPendiente(numeroCliente, true);
       await enviarTexto(numeroCliente, mensajeAsistenciaReal());
       return;
     }
@@ -1321,6 +1638,7 @@ async function procesarMensajeEntrante(mensaje) {
     const respuestaIA = await generarRespuestaIA(textoRecibido);
 
     if (esRespuestaSinDato(respuestaIA)) {
+      await marcarAtencionPendiente(numeroCliente, true);
       await enviarTexto(numeroCliente, mensajeAsistenciaReal());
       return;
     }
@@ -2196,6 +2514,102 @@ ${textoUsuario}
     console.error("=================================");
 
     return "No pude responder esa consulta en este momento.";
+  }
+}
+
+async function subirMediaWhatsApp(archivo) {
+  const url = `https://graph.facebook.com/v22.0/${idNumeroTelefono}/media`;
+
+  const formData = new FormData();
+  formData.append("messaging_product", "whatsapp");
+
+  const blob = new Blob([archivo.buffer], {
+    type: archivo.mimetype,
+  });
+
+  formData.append("file", blob, archivo.originalname);
+
+  const respuesta = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${tokenWhatsapp}`,
+    },
+    body: formData,
+  });
+
+  if (!respuesta.ok) {
+    console.error("Error subiendo media:", await respuesta.text());
+    return null;
+  }
+
+  const data = await respuesta.json();
+  return data.id || null;
+}
+
+async function enviarArchivoWhatsApp(numeroDestino, archivo, caption = "") {
+  try {
+    const mediaId = await subirMediaWhatsApp(archivo);
+
+    if (!mediaId) {
+      return {
+        ok: false,
+        tipo: "",
+        mediaId: "",
+      };
+    }
+
+    const esImagen = archivo.mimetype.startsWith("image/");
+    const tipo = esImagen ? "image" : "document";
+
+    const url = `https://graph.facebook.com/v22.0/${idNumeroTelefono}/messages`;
+
+    const payload = {
+      messaging_product: "whatsapp",
+      to: numeroDestino,
+      type: tipo,
+      [tipo]: esImagen
+        ? {
+            id: mediaId,
+            caption,
+          }
+        : {
+            id: mediaId,
+            caption,
+            filename: archivo.originalname,
+          },
+    };
+
+    const respuesta = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${tokenWhatsapp}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!respuesta.ok) {
+      console.error("Error enviando archivo:", await respuesta.text());
+      return {
+        ok: false,
+        tipo,
+        mediaId,
+      };
+    }
+
+    return {
+      ok: true,
+      tipo,
+      mediaId,
+    };
+  } catch (error) {
+    console.error("Error enviando archivo:", error);
+
+    return {
+      ok: false,
+      tipo: "",
+      mediaId: "",
+    };
   }
 }
 
