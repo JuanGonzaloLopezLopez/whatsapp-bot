@@ -239,6 +239,9 @@ async function leerConversacionesFirebase() {
         numero: conv.numero || "",
         creadoEn: conv.creadoEn || "",
         actualizadoEn: conv.actualizadoEn || "",
+        modoHumano: Boolean(conv.modoHumano),
+        tomadoPor: conv.tomadoPor || "",
+        tomadoEn: conv.tomadoEn || "",
         mensajes,
       };
     });
@@ -254,12 +257,77 @@ async function leerConversacionesFirebase() {
   }
 }
 
+async function obtenerConversacionPorClave(clave) {
+  try {
+    if (!firebaseDb || !clave) return null;
+
+    const snapshot = await firebaseDb
+      .ref(`conversaciones/${claveFirebase(clave)}`)
+      .once("value");
+
+    return snapshot.val();
+  } catch (error) {
+    console.error("Error obteniendo conversación:", error);
+    return null;
+  }
+}
+
+async function estaEnModoHumano(numero) {
+  try {
+    if (!firebaseDb || !numero) return false;
+
+    const clave = claveFirebase(numero);
+    const snapshot = await firebaseDb
+      .ref(`conversaciones/${clave}/modoHumano`)
+      .once("value");
+
+    return Boolean(snapshot.val());
+  } catch (error) {
+    console.error("Error revisando modo humano:", error);
+    return false;
+  }
+}
+
+async function tomarChatFirebase(clave) {
+  try {
+    if (!firebaseDb || !clave) return false;
+
+    await firebaseDb.ref(`conversaciones/${claveFirebase(clave)}`).update({
+      modoHumano: true,
+      tomadoPor: adminUser,
+      tomadoEn: new Date().toISOString(),
+      actualizadoEn: new Date().toISOString(),
+    });
+
+    return true;
+  } catch (error) {
+    console.error("Error tomando chat:", error);
+    return false;
+  }
+}
+
+async function liberarChatFirebase(clave) {
+  try {
+    if (!firebaseDb || !clave) return false;
+
+    await firebaseDb.ref(`conversaciones/${claveFirebase(clave)}`).update({
+      modoHumano: false,
+      liberadoEn: new Date().toISOString(),
+      actualizadoEn: new Date().toISOString(),
+    });
+
+    return true;
+  } catch (error) {
+    console.error("Error liberando chat:", error);
+    return false;
+  }
+}
+
 async function eliminarConversacionFirebase(clave) {
   try {
     if (!firebaseDb || !clave) return false;
 
-    const claveSegura = claveFirebase(clave);
-    await firebaseDb.ref(`conversaciones/${claveSegura}`).remove();
+    await firebaseDb.ref(`conversaciones/${claveFirebase(clave)}`).remove();
 
     return true;
   } catch (error) {
@@ -323,6 +391,93 @@ app.delete("/api/conversaciones/:clave", validarAdmin, async (req, res) => {
     ok: true,
     mensaje: "Conversación eliminada correctamente.",
   });
+});
+
+app.post("/api/conversaciones/:clave/tomar", validarAdmin, async (req, res) => {
+  const tomado = await tomarChatFirebase(req.params.clave);
+
+  if (!tomado) {
+    return res.status(500).json({
+      ok: false,
+      mensaje: "No se pudo tomar el chat.",
+    });
+  }
+
+  return res.json({
+    ok: true,
+    mensaje: "Chat tomado correctamente.",
+  });
+});
+
+app.post("/api/conversaciones/:clave/liberar", validarAdmin, async (req, res) => {
+  const liberado = await liberarChatFirebase(req.params.clave);
+
+  if (!liberado) {
+    return res.status(500).json({
+      ok: false,
+      mensaje: "No se pudo liberar el chat.",
+    });
+  }
+
+  return res.json({
+    ok: true,
+    mensaje: "Chat liberado correctamente.",
+  });
+});
+
+app.post("/api/conversaciones/:clave/mensaje", validarAdmin, async (req, res) => {
+  try {
+    const clave = req.params.clave;
+    const texto = String(req.body?.mensaje || "").trim();
+
+    if (!texto) {
+      return res.status(400).json({
+        ok: false,
+        mensaje: "El mensaje no puede estar vacío.",
+      });
+    }
+
+    const conversacion = await obtenerConversacionPorClave(clave);
+
+    if (!conversacion || !conversacion.numero) {
+      return res.status(404).json({
+        ok: false,
+        mensaje: "No se encontró la conversación.",
+      });
+    }
+
+    if (!conversacion.modoHumano) {
+      return res.status(400).json({
+        ok: false,
+        mensaje: "Primero debes tomar el chat para responder manualmente.",
+      });
+    }
+
+    const enviado = await enviarTextoWhatsApp(conversacion.numero, texto);
+
+    if (!enviado) {
+      return res.status(500).json({
+        ok: false,
+        mensaje: "No se pudo enviar el mensaje por WhatsApp.",
+      });
+    }
+
+    await guardarMensaje(conversacion.numero, "admin", "text", texto, {
+      enviadoPor: adminUser,
+    });
+
+    return res.json({
+      ok: true,
+      mensaje: "Mensaje enviado correctamente.",
+    });
+  } catch (error) {
+    console.error("Error enviando mensaje manual:", error);
+
+    return res.status(500).json({
+      ok: false,
+      mensaje: "Ocurrió un error al enviar el mensaje.",
+    });
+  }
 });
 
 app.get("/panel", validarAdmin, (req, res) => {
@@ -412,6 +567,16 @@ app.get("/panel", validarAdmin, (req, res) => {
       margin-top: 5px;
     }
 
+    .estado-humano {
+      display: inline-block;
+      background: #f97316;
+      color: white;
+      font-size: 11px;
+      padding: 3px 7px;
+      border-radius: 999px;
+      margin-top: 6px;
+    }
+
     .chat {
       display: flex;
       flex-direction: column;
@@ -432,10 +597,21 @@ app.get("/panel", validarAdmin, (req, res) => {
       font-weight: bold;
     }
 
-    .btn-eliminar {
-      display: none;
+    .chat-subtitle {
+      margin-top: 4px;
+      font-size: 12px;
+      color: #666;
+    }
+
+    .chat-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .btn {
       border: none;
-      background: #dc2626;
       color: white;
       padding: 8px 10px;
       border-radius: 8px;
@@ -443,8 +619,36 @@ app.get("/panel", validarAdmin, (req, res) => {
       font-size: 13px;
     }
 
+    .btn-tomar {
+      background: #0f766e;
+    }
+
+    .btn-tomar:hover {
+      background: #115e59;
+    }
+
+    .btn-liberar {
+      background: #2563eb;
+    }
+
+    .btn-liberar:hover {
+      background: #1d4ed8;
+    }
+
+    .btn-eliminar {
+      background: #dc2626;
+    }
+
     .btn-eliminar:hover {
       background: #b91c1c;
+    }
+
+    .btn-enviar {
+      background: #075e54;
+    }
+
+    .btn-enviar:hover {
+      background: #064c44;
     }
 
     .mensajes {
@@ -472,6 +676,11 @@ app.get("/panel", validarAdmin, (req, res) => {
 
     .bot {
       background: #dcf8c6;
+      margin-left: auto;
+    }
+
+    .admin {
+      background: #dbeafe;
       margin-left: auto;
     }
 
@@ -523,23 +732,57 @@ app.get("/panel", validarAdmin, (req, res) => {
       background: #064c44;
     }
 
+    .respuesta {
+      background: white;
+      border-top: 1px solid #ddd;
+      padding: 12px;
+      display: none;
+      gap: 8px;
+      align-items: flex-end;
+    }
+
+    .respuesta textarea {
+      flex: 1;
+      resize: none;
+      height: 64px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      outline: none;
+      font-family: Arial, sans-serif;
+    }
+
+    .respuesta textarea:disabled {
+      background: #f3f4f6;
+      color: #777;
+    }
+
     @media (max-width: 800px) {
       .contenedor {
         grid-template-columns: 1fr;
       }
 
       .lista {
-        height: 40vh;
+        height: 35vh;
         border-right: none;
         border-bottom: 1px solid #ddd;
       }
 
       .chat {
-        height: calc(60vh - 56px);
+        height: calc(65vh - 56px);
       }
 
       .burbuja {
         max-width: 90%;
+      }
+
+      .chat-header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .chat-actions {
+        justify-content: flex-start;
       }
     }
   </style>
@@ -562,12 +805,25 @@ app.get("/panel", validarAdmin, (req, res) => {
 
     <section class="chat">
       <div class="chat-header">
-        <div id="chatHeaderTitle" class="chat-title">Selecciona una conversación</div>
-        <button id="btnEliminar" class="btn-eliminar" onclick="eliminarSeleccionado()">Eliminar chat</button>
+        <div>
+          <div id="chatHeaderTitle" class="chat-title">Selecciona una conversación</div>
+          <div id="chatHeaderSubtitle" class="chat-subtitle"></div>
+        </div>
+
+        <div class="chat-actions">
+          <button id="btnTomar" class="btn btn-tomar" onclick="tomarSeleccionado()" style="display:none;">Tomar chat</button>
+          <button id="btnLiberar" class="btn btn-liberar" onclick="liberarSeleccionado()" style="display:none;">Liberar chatbot</button>
+          <button id="btnEliminar" class="btn btn-eliminar" onclick="eliminarSeleccionado()" style="display:none;">Eliminar chat</button>
+        </div>
       </div>
 
       <div id="mensajes" class="mensajes">
         <div class="vacio">Aquí aparecerán los mensajes recibidos y enviados por el bot.</div>
+      </div>
+
+      <div id="respuestaBox" class="respuesta">
+        <textarea id="mensajeManual" placeholder="Toma el chat para responder manualmente..." disabled></textarea>
+        <button id="btnEnviarManual" class="btn btn-enviar" onclick="enviarMensajeManual()" disabled>Enviar</button>
       </div>
     </section>
   </div>
@@ -579,7 +835,15 @@ app.get("/panel", validarAdmin, (req, res) => {
     const contactosDiv = document.getElementById("contactos");
     const mensajesDiv = document.getElementById("mensajes");
     const chatHeaderTitle = document.getElementById("chatHeaderTitle");
+    const chatHeaderSubtitle = document.getElementById("chatHeaderSubtitle");
+
+    const btnTomar = document.getElementById("btnTomar");
+    const btnLiberar = document.getElementById("btnLiberar");
     const btnEliminar = document.getElementById("btnEliminar");
+    const respuestaBox = document.getElementById("respuestaBox");
+    const mensajeManual = document.getElementById("mensajeManual");
+    const btnEnviarManual = document.getElementById("btnEnviarManual");
+
     const buscarInput = document.getElementById("buscar");
 
     function fechaBonita(valor) {
@@ -599,6 +863,11 @@ app.get("/panel", validarAdmin, (req, res) => {
       return String(texto);
     }
 
+    function conversacionActual() {
+      if (!seleccionado) return null;
+      return conversaciones.find(c => c.numero === seleccionado) || null;
+    }
+
     async function cargarConversaciones() {
       try {
         const res = await fetch("/api/conversaciones");
@@ -607,20 +876,29 @@ app.get("/panel", validarAdmin, (req, res) => {
         renderContactos();
 
         if (seleccionado) {
-          const actual = conversaciones.find(c => c.numero === seleccionado);
+          const actual = conversacionActual();
           if (actual) {
             renderMensajes(actual);
           } else {
-            seleccionado = null;
-            chatHeaderTitle.textContent = "Selecciona una conversación";
-            btnEliminar.style.display = "none";
-            mensajesDiv.innerHTML = '<div class="vacio">Aquí aparecerán los mensajes recibidos y enviados por el bot.</div>';
+            limpiarSeleccion();
           }
         }
       } catch (error) {
         console.error(error);
         contactosDiv.innerHTML = '<div class="vacio">No se pudieron cargar las conversaciones.</div>';
       }
+    }
+
+    function limpiarSeleccion() {
+      seleccionado = null;
+      chatHeaderTitle.textContent = "Selecciona una conversación";
+      chatHeaderSubtitle.textContent = "";
+      btnTomar.style.display = "none";
+      btnLiberar.style.display = "none";
+      btnEliminar.style.display = "none";
+      respuestaBox.style.display = "none";
+      mensajeManual.value = "";
+      mensajesDiv.innerHTML = '<div class="vacio">Aquí aparecerán los mensajes recibidos y enviados por el bot.</div>';
     }
 
     function renderContactos() {
@@ -651,8 +929,13 @@ app.get("/panel", validarAdmin, (req, res) => {
 
         const ultimoDiv = document.createElement("div");
         ultimoDiv.className = "ultimo";
+
+        let origen = "Usuario: ";
+        if (ultimo?.origen === "bot") origen = "Bot: ";
+        if (ultimo?.origen === "admin") origen = "Admin: ";
+
         ultimoDiv.textContent = ultimo
-          ? (ultimo.origen === "bot" ? "Bot: " : "Usuario: ") + limpiarTexto(ultimo.contenido)
+          ? origen + limpiarTexto(ultimo.contenido)
           : "Sin mensajes";
 
         const fecha = document.createElement("div");
@@ -662,6 +945,13 @@ app.get("/panel", validarAdmin, (req, res) => {
         div.appendChild(numero);
         div.appendChild(ultimoDiv);
         div.appendChild(fecha);
+
+        if (conv.modoHumano) {
+          const estado = document.createElement("div");
+          estado.className = "estado-humano";
+          estado.textContent = "Atendido por persona";
+          div.appendChild(estado);
+        }
 
         div.addEventListener("click", () => {
           seleccionado = conv.numero;
@@ -675,7 +965,24 @@ app.get("/panel", validarAdmin, (req, res) => {
 
     function renderMensajes(conv) {
       chatHeaderTitle.textContent = "Conversación con " + conv.numero;
+
+      if (conv.modoHumano) {
+        chatHeaderSubtitle.textContent = "Modo humano activo. El bot no responderá en esta conversación.";
+      } else {
+        chatHeaderSubtitle.textContent = "Chatbot activo. El bot responderá automáticamente.";
+      }
+
       btnEliminar.style.display = "inline-block";
+      btnTomar.style.display = conv.modoHumano ? "none" : "inline-block";
+      btnLiberar.style.display = conv.modoHumano ? "inline-block" : "none";
+
+      respuestaBox.style.display = "flex";
+      mensajeManual.disabled = !conv.modoHumano;
+      btnEnviarManual.disabled = !conv.modoHumano;
+      mensajeManual.placeholder = conv.modoHumano
+        ? "Escribir mensaje..."
+        : "Toma el chat para responder manualmente...";
+
       mensajesDiv.innerHTML = "";
 
       if (!conv.mensajes || conv.mensajes.length === 0) {
@@ -688,11 +995,25 @@ app.get("/panel", validarAdmin, (req, res) => {
 
       conv.mensajes.forEach(msg => {
         const burbuja = document.createElement("div");
-        burbuja.className = "burbuja " + (msg.origen === "bot" ? "bot" : "usuario");
+
+        let clase = "usuario";
+        let etiqueta = "Usuario";
+
+        if (msg.origen === "bot") {
+          clase = "bot";
+          etiqueta = "Bot";
+        }
+
+        if (msg.origen === "admin") {
+          clase = "admin";
+          etiqueta = "Administrador";
+        }
+
+        burbuja.className = "burbuja " + clase;
 
         const badge = document.createElement("div");
         badge.className = "badge";
-        badge.textContent = msg.origen === "bot" ? "Bot" : "Usuario";
+        badge.textContent = etiqueta;
 
         const contenido = document.createElement("div");
 
@@ -716,10 +1037,53 @@ app.get("/panel", validarAdmin, (req, res) => {
       mensajesDiv.scrollTop = mensajesDiv.scrollHeight;
     }
 
-    async function eliminarSeleccionado() {
-      if (!seleccionado) return;
+    async function tomarSeleccionado() {
+      const conv = conversacionActual();
+      if (!conv) return;
 
-      const conv = conversaciones.find(c => c.numero === seleccionado);
+      try {
+        const res = await fetch("/api/conversaciones/" + encodeURIComponent(conv.clave) + "/tomar", {
+          method: "POST"
+        });
+
+        if (!res.ok) {
+          alert("No se pudo tomar el chat.");
+          return;
+        }
+
+        await cargarConversaciones();
+      } catch (error) {
+        console.error(error);
+        alert("Ocurrió un error al tomar el chat.");
+      }
+    }
+
+    async function liberarSeleccionado() {
+      const conv = conversacionActual();
+      if (!conv) return;
+
+      const confirmar = confirm("¿Deseas liberar el chatbot para esta conversación?");
+      if (!confirmar) return;
+
+      try {
+        const res = await fetch("/api/conversaciones/" + encodeURIComponent(conv.clave) + "/liberar", {
+          method: "POST"
+        });
+
+        if (!res.ok) {
+          alert("No se pudo liberar el chatbot.");
+          return;
+        }
+
+        await cargarConversaciones();
+      } catch (error) {
+        console.error(error);
+        alert("Ocurrió un error al liberar el chatbot.");
+      }
+    }
+
+    async function eliminarSeleccionado() {
+      const conv = conversacionActual();
       if (!conv) return;
 
       const confirmar = confirm("¿Seguro que deseas eliminar este chat? Esta acción no se puede deshacer.");
@@ -735,17 +1099,60 @@ app.get("/panel", validarAdmin, (req, res) => {
           return;
         }
 
-        seleccionado = null;
-        chatHeaderTitle.textContent = "Selecciona una conversación";
-        btnEliminar.style.display = "none";
-        mensajesDiv.innerHTML = '<div class="vacio">Aquí aparecerán los mensajes recibidos y enviados por el bot.</div>';
-
+        limpiarSeleccion();
         await cargarConversaciones();
       } catch (error) {
         console.error(error);
         alert("Ocurrió un error al eliminar el chat.");
       }
     }
+
+    async function enviarMensajeManual() {
+      const conv = conversacionActual();
+      if (!conv) return;
+
+      const texto = mensajeManual.value.trim();
+
+      if (!texto) {
+        alert("Escribe un mensaje antes de enviar.");
+        return;
+      }
+
+      try {
+        btnEnviarManual.disabled = true;
+
+        const res = await fetch("/api/conversaciones/" + encodeURIComponent(conv.clave) + "/mensaje", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ mensaje: texto })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok || !data.ok) {
+          alert(data.mensaje || "No se pudo enviar el mensaje.");
+          return;
+        }
+
+        mensajeManual.value = "";
+        await cargarConversaciones();
+      } catch (error) {
+        console.error(error);
+        alert("Ocurrió un error al enviar el mensaje.");
+      } finally {
+        const actualizado = conversacionActual();
+        btnEnviarManual.disabled = !(actualizado && actualizado.modoHumano);
+      }
+    }
+
+    mensajeManual.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        enviarMensajeManual();
+      }
+    });
 
     buscarInput.addEventListener("input", renderContactos);
 
@@ -820,6 +1227,10 @@ async function procesarMensajeEntrante(mensaje) {
   } else if (tipo === "audio") {
     await guardarMensaje(numeroCliente, "usuario", "audio", "Audio recibido");
 
+    if (await estaEnModoHumano(numeroCliente)) {
+      return;
+    }
+
     await enviarTexto(
       numeroCliente,
       "🎧 *No se cuenta con la capacidad de responder audios.*\n\n" +
@@ -836,6 +1247,10 @@ async function procesarMensajeEntrante(mensaje) {
       `Mensaje recibido de tipo: ${tipo}`
     );
 
+    if (await estaEnModoHumano(numeroCliente)) {
+      return;
+    }
+
     await enviarTexto(
       numeroCliente,
       "⚠️ *Por ahora solo puedo atender mensajes de texto o respuestas del menú.*"
@@ -846,6 +1261,10 @@ async function procesarMensajeEntrante(mensaje) {
   }
 
   await guardarMensaje(numeroCliente, "usuario", tipo, textoRecibido);
+
+  if (await estaEnModoHumano(numeroCliente)) {
+    return;
+  }
 
   const textoNormalizado = normalizarTexto(textoRecibido);
   const sesionActual = obtenerSesion(numeroCliente);
@@ -1780,7 +2199,7 @@ ${textoUsuario}
   }
 }
 
-async function enviarTexto(numeroDestino, texto) {
+async function enviarTextoWhatsApp(numeroDestino, texto) {
   const url = `https://graph.facebook.com/v22.0/${idNumeroTelefono}/messages`;
 
   const payload = {
@@ -1803,8 +2222,16 @@ async function enviarTexto(numeroDestino, texto) {
 
   if (!respuesta.ok) {
     console.error("Error enviando texto:", await respuesta.text());
-    return;
+    return false;
   }
+
+  return true;
+}
+
+async function enviarTexto(numeroDestino, texto) {
+  const enviado = await enviarTextoWhatsApp(numeroDestino, texto);
+
+  if (!enviado) return;
 
   await guardarMensaje(numeroDestino, "bot", "text", texto);
 }
