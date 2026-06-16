@@ -68,10 +68,10 @@ try {
 }
 
 const URL_IMAGEN_OFERTA =
-  "https://drive.google.com/uc?export=view&id=1-qvuauPg0j_IrR0Z22qJXIdwZUgTlBBy";
+  "https://drive.google.com/uc?export=view&id=1dyTu7SGPCvfUbBAjHMkFjn-ZleWQrTFW";
 
 const URL_IMAGEN_FICHAS =
-  "https://drive.google.com/uc?export=view&id=1dyTu7SGPCvfUbBAjHMkFjn-ZleWQrTFW";
+  "https://drive.google.com/uc?export=view&id=1HEHavShxvnpORxW5AbazRHzDMuTQbHUY";
 
 const TELEFONO_BASE = "(235) 323-15-45";
 const TELEFONO_VIRTUAL = "(235) 323-25-45";
@@ -172,25 +172,6 @@ REGRESATEC:
 - Subdirección Académica: ${TELEFONO_VIRTUAL} ext. 134
 - Estudios Profesionales: ${TELEFONO_BASE} ext. 166
 `;
-
-// Easter eggs discretos
-const _e1 = "Q2hhcmxpZSBDaGFybGllIEtpcmt5IPCfl6PvuI/wn5Sl";
-const _v1 =
-  "aHR0cHM6Ly9kcml2ZS5nb29nbGUuY29tL3VjP2V4cG9ydD1kb3dubG9hZCZpZD0xekxMT1NaRU5RNnlzTEZac2J3ZEJ2V09DclN6bGlyX2k=";
-
-const _e2 = "UXVpZXJlcyB2ZW5pciBhIG1pIGlzbGE/";
-const _e3 = "UXVpZXJlcyB2ZW5pciBhIG1pIGZpZXN0YT8=";
-const _v2 =
-  "aHR0cHM6Ly9kcml2ZS5nb29nbGUuY29tL3VjP2V4cG9ydD1kb3dubG9hZCZpZD0xRGtucGRGUWxMdkM1TE5Kd3h3ZkRUNEVRZ09PdTN0YkM=";
-
-const _e4 = "V2UgYXJlIENoYXJsaWUgS2lyayAg8J+Xo++4j/CflKU=";
-const _e5 = "V2UgYXJlIENoYXJsaWUgS2lyaw==";
-const _v3 =
-  "aHR0cHM6Ly9kcml2ZS5nb29nbGUuY29tL3VjP2V4cG9ydD1kb3dubG9hZCZpZD0xdzBmOGlNWGdQblMwUmdmcEVTRy1RU0xyVDZwelNWU3o=";
-
-function _x(valor) {
-  return Buffer.from(valor, "base64").toString("utf8");
-}
 
 if (!tokenVerificacion || !tokenWhatsapp || !idNumeroTelefono) {
   console.error("Faltan variables de entorno obligatorias.");
@@ -642,8 +623,6 @@ app.get("/panel", validarAdmin, (req, res) => {
 
         if (msg.tipo === "image" && msg.extra?.imageUrl) {
           contenido.textContent = limpiarTexto(msg.contenido) + "\\n" + msg.extra.imageUrl;
-        } else if (msg.tipo === "video" && msg.extra?.videoUrl) {
-          contenido.textContent = limpiarTexto(msg.contenido) + "\\n" + msg.extra.videoUrl;
         } else {
           contenido.textContent = limpiarTexto(msg.contenido);
         }
@@ -723,6 +702,7 @@ async function procesarMensajeEntrante(mensaje) {
   if (!numeroCliente) return;
 
   let textoRecibido = "";
+  const vieneDeLista = tipo === "interactive";
 
   if (tipo === "text") {
     textoRecibido = (mensaje.text?.body || "").trim();
@@ -731,6 +711,17 @@ async function procesarMensajeEntrante(mensaje) {
       mensaje.interactive?.button_reply?.id ||
       mensaje.interactive?.list_reply?.id ||
       "";
+  } else if (tipo === "audio") {
+    await guardarMensaje(numeroCliente, "usuario", "audio", "Audio recibido");
+
+    await enviarTexto(
+      numeroCliente,
+      "🎧 *No se cuenta con la capacidad de responder audios.*\n\n" +
+        "Por favor, escribe tu consulta en texto o selecciona una opción del menú."
+    );
+
+    await enviarMenuPrincipal(numeroCliente);
+    return;
   } else {
     await guardarMensaje(
       numeroCliente,
@@ -743,24 +734,12 @@ async function procesarMensajeEntrante(mensaje) {
       numeroCliente,
       "⚠️ *Por ahora solo puedo atender mensajes de texto o respuestas del menú.*"
     );
+
+    await enviarMenuPrincipal(numeroCliente);
     return;
   }
 
   await guardarMensaje(numeroCliente, "usuario", tipo, textoRecibido);
-
-  const exacto = (textoRecibido || "").trim();
-  const mapaSecreto = {
-    [_x(_e1)]: _x(_v1),
-    [_x(_e2)]: _x(_v2),
-    [_x(_e3)]: _x(_v2),
-    [_x(_e4)]: _x(_v3),
-    [_x(_e5)]: _x(_v3),
-  };
-
-  if (Object.prototype.hasOwnProperty.call(mapaSecreto, exacto)) {
-    await enviarVideo(numeroCliente, mapaSecreto[exacto]);
-    return;
-  }
 
   const textoNormalizado = normalizarTexto(textoRecibido);
   const sesionActual = obtenerSesion(numeroCliente);
@@ -826,6 +805,11 @@ async function procesarMensajeEntrante(mensaje) {
         respuestaFija.caption || ""
       );
     }
+
+    if (vieneDeLista) {
+      await enviarMenuPrincipal(numeroCliente);
+    }
+
     return;
   }
 
@@ -834,6 +818,10 @@ async function procesarMensajeEntrante(mensaje) {
     "❓ *No encontré una respuesta fija para esa duda.*\n\n" +
       'Escribe *menu* para ver el menú principal o *Especifico* para hacer una consulta más detallada.'
   );
+
+  if (vieneDeLista) {
+    await enviarMenuPrincipal(numeroCliente);
+  }
 }
 
 function obtenerSesion(numeroCliente) {
@@ -1070,6 +1058,8 @@ function construirRespuestaFija(texto) {
     texto === "op_btn_oferta" ||
     contieneAlgunaFrase(texto, [
       "oferta educativa",
+      "oferta academica",
+      "oferta académica",
       "carreras",
       "carrera",
       "postgrados",
@@ -1591,40 +1581,6 @@ async function enviarImagen(numeroDestino, imageUrl, caption = "") {
 
   await guardarMensaje(numeroDestino, "bot", "image", caption || "Imagen enviada", {
     imageUrl,
-  });
-}
-
-async function enviarVideo(numeroDestino, videoUrl, caption = "") {
-  const url = `https://graph.facebook.com/v22.0/${idNumeroTelefono}/messages`;
-
-  const payload = {
-    messaging_product: "whatsapp",
-    to: numeroDestino,
-    type: "video",
-    video: {
-      link: videoUrl,
-      caption,
-    },
-  };
-
-  const respuesta = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${tokenWhatsapp}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!respuesta.ok) {
-    const detalle = await respuesta.text();
-    console.error("Error enviando video:", detalle);
-    await enviarTexto(numeroDestino, videoUrl);
-    return;
-  }
-
-  await guardarMensaje(numeroDestino, "bot", "video", caption || "Video enviado", {
-    videoUrl,
   });
 }
 
