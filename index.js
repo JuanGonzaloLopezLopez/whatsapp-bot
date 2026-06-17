@@ -603,7 +603,7 @@ app.get("/panel", validarAdmin, (req, res) => {
 <head>
   <meta charset="UTF-8" />
   <title>Panel de conversaciones</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
   <style>
     * { box-sizing: border-box; }
@@ -617,6 +617,10 @@ app.get("/panel", validarAdmin, (req, res) => {
       color: #111827;
     }
 
+    body {
+      width: 100%;
+    }
+
     header {
       height: 56px;
       background: #075e54;
@@ -626,6 +630,7 @@ app.get("/panel", validarAdmin, (req, res) => {
       font-weight: bold;
       display: flex;
       align-items: center;
+      flex-shrink: 0;
     }
 
     .contenedor {
@@ -658,6 +663,7 @@ app.get("/panel", validarAdmin, (req, res) => {
       border: 1px solid #ccc;
       border-radius: 8px;
       outline: none;
+      font-size: 14px;
     }
 
     .acciones {
@@ -682,6 +688,7 @@ app.get("/panel", validarAdmin, (req, res) => {
       flex: 1;
       overflow-y: auto;
       min-height: 0;
+      -webkit-overflow-scrolling: touch;
     }
 
     .contacto {
@@ -778,7 +785,17 @@ app.get("/panel", validarAdmin, (req, res) => {
       gap: 12px;
     }
 
-    .chat-title { font-weight: bold; }
+    .chat-info {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .chat-title {
+      font-weight: bold;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
 
     .chat-subtitle {
       margin-top: 4px;
@@ -792,6 +809,21 @@ app.get("/panel", validarAdmin, (req, res) => {
       flex-wrap: wrap;
       justify-content: flex-end;
     }
+
+    .btn-volver {
+      display: none;
+      border: none;
+      background: #e5e7eb;
+      color: #111827;
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 6px;
+      flex-shrink: 0;
+    }
+
+    .btn-volver:hover { background: #d1d5db; }
 
     .btn {
       border: none;
@@ -820,6 +852,7 @@ app.get("/panel", validarAdmin, (req, res) => {
       padding: 18px;
       overflow-y: auto;
       background: #efeae2;
+      -webkit-overflow-scrolling: touch;
     }
 
     .burbuja {
@@ -895,6 +928,7 @@ app.get("/panel", validarAdmin, (req, res) => {
       border-radius: 8px;
       outline: none;
       font-family: Arial, sans-serif;
+      font-size: 14px;
     }
 
     .respuesta textarea:disabled {
@@ -938,36 +972,201 @@ app.get("/panel", validarAdmin, (req, res) => {
       max-width: 210px;
     }
 
-    @media (max-width: 850px) {
-      .contenedor { grid-template-columns: 1fr; }
+    @media (max-width: 850px) and (orientation: portrait) {
+      html, body {
+        height: 100dvh;
+        width: 100vw;
+        overflow: hidden;
+      }
+
+      header {
+        height: 52px;
+        padding: 12px 14px;
+        font-size: 17px;
+      }
+
+      .contenedor {
+        display: block;
+        position: relative;
+        height: calc(100dvh - 52px);
+        width: 100%;
+        overflow: hidden;
+      }
 
       .lista {
-        height: 35vh;
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
         border-right: none;
-        border-bottom: 1px solid #ddd;
+        z-index: 2;
       }
 
-      .chat { height: calc(65vh - 56px); }
-      .burbuja { max-width: 90%; }
+      .chat {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: none;
+        z-index: 3;
+      }
+
+      body.chat-abierto .lista {
+        display: none;
+      }
+
+      body.chat-abierto .chat {
+        display: flex;
+      }
+
+      .buscador {
+        padding: 10px;
+      }
+
+      .buscador input {
+        font-size: 16px;
+        padding: 11px;
+      }
+
+      .acciones {
+        padding: 0 10px 10px 10px;
+      }
+
+      .acciones button {
+        width: 100%;
+        padding: 10px;
+        font-size: 14px;
+      }
+
+      .contacto {
+        padding: 14px 14px;
+      }
+
+      .numero {
+        font-size: 15px;
+      }
+
+      .ultimo {
+        font-size: 13px;
+      }
+
+      .fecha {
+        font-size: 11px;
+      }
 
       .chat-header {
+        padding: 9px 10px;
+        gap: 6px;
         align-items: flex-start;
-        flex-direction: column;
       }
 
-      .chat-actions { justify-content: flex-start; }
+      .btn-volver {
+        display: inline-block;
+      }
+
+      .chat-info {
+        flex: 1;
+        min-width: 0;
+        padding-top: 2px;
+      }
+
+      .chat-title {
+        font-size: 14px;
+      }
+
+      .chat-subtitle {
+        font-size: 11px;
+        line-height: 1.3;
+      }
+
+      .chat-actions {
+        gap: 5px;
+        justify-content: flex-end;
+        max-width: 145px;
+      }
+
+      .btn {
+        padding: 7px 8px;
+        font-size: 11px;
+      }
+
+      .mensajes {
+        padding: 12px 10px;
+      }
+
+      .burbuja {
+        max-width: 90%;
+        font-size: 14px;
+        padding: 9px 10px;
+      }
+
+      .badge {
+        font-size: 10px;
+      }
+
+      .meta {
+        font-size: 10px;
+      }
 
       .respuesta {
+        display: none;
+        padding: 8px;
+        gap: 6px;
         align-items: stretch;
         flex-direction: column;
+        padding-bottom: calc(8px + env(safe-area-inset-bottom));
+      }
+
+      .respuesta textarea {
+        width: 100%;
+        height: 48px;
+        max-height: 80px;
+        font-size: 16px;
       }
 
       .archivo-zona {
-        max-width: none;
         width: 100%;
+        max-width: none;
+        min-width: 0;
       }
 
-      #nombreArchivo { max-width: none; }
+      .archivo-label {
+        width: 100%;
+        font-size: 13px;
+        padding: 8px;
+      }
+
+      #nombreArchivo {
+        max-width: 100%;
+      }
+
+      .btn-enviar {
+        width: 100%;
+        padding: 11px;
+        font-size: 14px;
+      }
+
+      body.chat-abierto .respuesta {
+        display: flex;
+      }
+    }
+
+    @media (max-width: 850px) and (orientation: landscape) {
+      .contenedor {
+        grid-template-columns: 310px 1fr;
+      }
+
+      .burbuja {
+        max-width: 85%;
+      }
+
+      .respuesta {
+        align-items: stretch;
+      }
+
+      .archivo-zona {
+        max-width: 180px;
+      }
     }
   </style>
 </head>
@@ -991,7 +1190,9 @@ app.get("/panel", validarAdmin, (req, res) => {
 
     <section class="chat">
       <div class="chat-header">
-        <div>
+        <button id="btnVolverChats" class="btn-volver" onclick="volverAContactos()">← Chats</button>
+
+        <div class="chat-info">
           <div id="chatHeaderTitle" class="chat-title">Selecciona una conversación</div>
           <div id="chatHeaderSubtitle" class="chat-subtitle"></div>
         </div>
@@ -1047,6 +1248,26 @@ app.get("/panel", validarAdmin, (req, res) => {
 
     const buscarInput = document.getElementById("buscar");
 
+    function esMovilVertical() {
+      return window.matchMedia("(max-width: 850px) and (orientation: portrait)").matches;
+    }
+
+    function abrirChatMovil() {
+      if (esMovilVertical()) {
+        document.body.classList.add("chat-abierto");
+      }
+    }
+
+    function volverAContactos() {
+      document.body.classList.remove("chat-abierto");
+    }
+
+    window.addEventListener("resize", () => {
+      if (!esMovilVertical()) {
+        document.body.classList.remove("chat-abierto");
+      }
+    });
+
     function fechaBonita(valor) {
       try {
         if (!valor) return "";
@@ -1095,6 +1316,7 @@ app.get("/panel", validarAdmin, (req, res) => {
 
     function limpiarSeleccion() {
       seleccionado = null;
+      document.body.classList.remove("chat-abierto");
       chatHeaderTitle.textContent = "Selecciona una conversación";
       chatHeaderSubtitle.textContent = "";
       btnTomar.style.display = "none";
@@ -1180,6 +1402,7 @@ app.get("/panel", validarAdmin, (req, res) => {
           seleccionado = conv.numero;
           renderContactos();
           renderMensajes(conv);
+          abrirChatMovil();
           await marcarComoLeido(conv);
         });
 
