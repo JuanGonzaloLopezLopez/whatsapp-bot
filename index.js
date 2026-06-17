@@ -28,7 +28,7 @@ const upload = multer({
 const puerto = Number(process.env.PORT || 3000);
 const tokenVerificacion = process.env.VERIFY_TOKEN;
 const tokenWhatsapp = process.env.WHATSAPP_TOKEN;
-const idNumeroTelefono = process.env.PHONE_NUMBER_ID;
+const idNumeroTelefono = String(process.env.PHONE_NUMBER_ID || "").trim();
 const appSecret = process.env.APP_SECRET || "";
 const geminiApiKey = process.env.GEMINI_API_KEY || "";
 
@@ -83,7 +83,7 @@ const URL_IMAGEN_FICHAS =
 
 const TELEFONO_BASE = "(235) 323-15-45";
 const TELEFONO_VIRTUAL = "(235) 323-25-45";
-const WHATSAPP_ASISTENCIA = "235 101 07 97";
+const TELEFONO_BOT_LLAMADAS = "235 101 07 97";
 
 const EXTENSIONES = {
   direccion: "158",
@@ -115,7 +115,7 @@ Sábados: 9:00 a 14:00 horas.
 
 TELÉFONOS:
 Tel. principal: ${TELEFONO_BASE}
-WhatsApp de asistencia real: ${WHATSAPP_ASISTENCIA}
+Número del bot para llamadas normales rápidas: ${TELEFONO_BOT_LLAMADAS}
 
 CORREO DIRECCIÓN GENERAL:
 dir_itsmisantla@itsm.edu.mx
@@ -215,7 +215,10 @@ async function guardarMensaje(numero, origen, tipo, contenido, extra = {}) {
     }
 
     if (origen === "usuario") {
-      const nuevosSnap = await conversacionRef.child("mensajesNuevos").once("value");
+      const nuevosSnap = await conversacionRef
+        .child("mensajesNuevos")
+        .once("value");
+
       const actuales = Number(nuevosSnap.val() || 0);
       actualizacion.mensajesNuevos = actuales + 1;
     }
@@ -1508,6 +1511,18 @@ app.post("/webhook", async (req, res) => {
 
       for (const cambio of cambios) {
         const valor = cambio?.value;
+
+        const phoneNumberIdEntrante = String(
+          valor?.metadata?.phone_number_id || ""
+        ).trim();
+
+        if (phoneNumberIdEntrante && phoneNumberIdEntrante !== idNumeroTelefono) {
+          console.log(
+            `Mensaje ignorado. Llegó para ${phoneNumberIdEntrante}, pero el bot configurado usa ${idNumeroTelefono}`
+          );
+          continue;
+        }
+
         const mensajes = valor?.messages || [];
 
         for (const mensaje of mensajes) {
@@ -1728,6 +1743,24 @@ function contieneAlgunaFrase(texto, frases) {
   return frases.some((frase) => texto.includes(frase));
 }
 
+function solicitaTelefonoOExtension(texto) {
+  return contieneAlgunaFrase(texto, [
+    "telefono",
+    "teléfono",
+    "numero",
+    "número",
+    "num",
+    "núm",
+    "extension",
+    "extensión",
+    "ext.",
+    "ext ",
+    "contacto",
+    "llamar",
+    "llamada",
+  ]);
+}
+
 function detectarSolicitudHumana(texto) {
   const frases = [
     "quiero hablar con alguien real",
@@ -1736,12 +1769,17 @@ function detectarSolicitudHumana(texto) {
     "necesito hablar con una persona",
     "quiero hablar con un asesor",
     "necesito un asesor",
+    "quiero hablar con un representante",
+    "necesito un representante",
+    "representante real",
     "pasame con alguien",
     "pásame con alguien",
     "pasame con una persona",
     "pásame con una persona",
     "pasame con un asesor",
     "pásame con un asesor",
+    "pasame con un representante",
+    "pásame con un representante",
     "quiero atencion real",
     "quiero atención real",
     "necesito atencion real",
@@ -1841,10 +1879,11 @@ function esRespuestaSinDato(respuesta) {
 
 function mensajeAsistenciaReal() {
   return (
-    "🙋 *Asistencia real*\n\n" +
-    "Si necesitas hablar con una persona o tu duda no fue resuelta, puedes comunicarte por WhatsApp al:\n\n" +
-    `📲 *${WHATSAPP_ASISTENCIA}*\n\n` +
-    "Ahí podrán brindarte atención personalizada."
+    "🙋 *Atención con representante real*\n\n" +
+    "Tu solicitud fue registrada. En unos minutos un representante real podrá atenderte por este mismo chat.\n\n" +
+    "📞 *Si necesitas una respuesta más rápida*, puedes realizar una llamada normal al número del bot:\n\n" +
+    `*${TELEFONO_BOT_LLAMADAS}*\n\n` +
+    "Importante: para una respuesta rápida, realiza una *llamada normal*, no mensaje por WhatsApp."
   );
 }
 
@@ -1921,7 +1960,7 @@ async function enviarMenuPrincipal(numeroDestino) {
 }
 
 async function enviarLista(numeroDestino) {
-  const url = `https://graph.facebook.com/v22.0/${idNumeroTelefono}/messages`;
+  const url = `https://graph.facebook.com/v25.0/${idNumeroTelefono}/messages`;
 
   const payload = {
     messaging_product: "whatsapp",
@@ -2141,7 +2180,7 @@ function construirRespuestaFija(texto) {
         `   - Residencias: ext. ${EXTENSIONES.residencias}\n` +
         `   - División de Estudios: ext. ${EXTENSIONES.divisionEstudios}\n` +
         `   - Vinculación: ext. ${EXTENSIONES.vinculacion}\n\n` +
-        `📲 *WhatsApp:* ${WHATSAPP_ASISTENCIA}\n` +
+        `📞 *Número del bot para llamada normal:* ${TELEFONO_BOT_LLAMADAS}\n` +
         "📧 *Correo Dirección General:*\n" +
         "dir_itsmisantla@itsm.edu.mx\n\n" +
         "✨ Si deseas información más detallada selecciona *Especifico* en el menú.",
@@ -2149,90 +2188,26 @@ function construirRespuestaFija(texto) {
   }
 
   if (
-    texto === "op_btn_ubicacion" ||
-    contieneAlgunaFrase(texto, [
-      "ubicacion del itsm",
-      "ubicación del itsm",
-      "ubicacion del instituto",
-      "ubicación del instituto",
-      "ubicacion",
-      "ubicación",
-      "direccion",
-      "dirección",
-      "mapa",
-      "google maps",
-    ])
-  ) {
-    return {
-      tipo: "texto",
-      mensaje:
-        "📍 *UBICACIÓN DEL INSTITUTO TECNOLÓGICO SUPERIOR DE MISANTLA*\n\n" +
-        "• *Dirección:* Km. 1.8 Carretera a Loma del Cojolite\n" +
-        "• *C.P.:* 93850\n" +
-        "• *Ciudad:* Misantla, Veracruz, México\n\n" +
-        "🗺️ *Google Maps*\n" +
-        "https://maps.app.goo.gl/UYednfvUfUB2Ec1C9\n\n" +
-        "🕒 *Horarios de atención*\n" +
-        "• Lunes a viernes: 9:00 a 14:00 y de 15:00 a 17:00 horas\n" +
-        "• Sábados: 9:00 a 14:00 horas\n\n" +
-        "✨ Si deseas información más detallada selecciona *Especifico* en el menú.",
-    };
-  }
-
-  if (
-    texto === "op_btn_virtual" ||
-    contieneAlgunaFrase(texto, [
-      "educacion virtual tecnm",
-      "educación virtual tecnm",
-      "educacion virtual",
-      "educación virtual",
-      "virtual tecnm",
-      "modalidad virtual",
-    ])
-  ) {
-    return {
-      tipo: "texto",
-      mensaje:
-        "💻 *EDUCACIÓN VIRTUAL TECNM*\n\n" +
-        "☎️ *Contacto*\n" +
-        `• Teléfono: ${TELEFONO_VIRTUAL}\n` +
-        `• Extensión: ${EXTENSIONES.subdireccionAcademica}\n` +
-        "• Área: Subdirección Académica\n\n" +
-        "🌐 *Enlace*\n" +
-        "• virtual.tecnm.mx\n\n" +
-        "📚 *Carreras disponibles en esta modalidad*\n" +
-        "• Ingeniería Industrial\n" +
-        "• Ingeniería en Sistemas Computacionales\n" +
-        "• Ingeniería en Gestión Empresarial\n\n" +
-        "✨ Si deseas información más detallada selecciona *Especifico* en el menú.",
-    };
-  }
-
-  if (
-    texto === "op_btn_regresatec" ||
-    contieneAlgunaFrase(texto, ["regresatec", "regresa tec", "regresa"])
-  ) {
-    return {
-      tipo: "texto",
-      mensaje:
-        "🔁 *REGRESATEC*\n\n" +
-        "☎️ *Contactos*\n" +
-        `• Subdirección Académica: ${TELEFONO_VIRTUAL} ext. ${EXTENSIONES.subdireccionAcademica}\n` +
-        `• Estudios Profesionales: ${TELEFONO_BASE} ext. ${EXTENSIONES.divisionEstudios}\n\n` +
-        "✨ Si deseas información más detallada selecciona *Especifico* en el menú.",
-    };
-  }
-
-  if (
     contieneAlgunaFrase(texto, [
       "direccion general",
+      "dirección general",
       "telefono de direccion",
       "teléfono de dirección",
+      "telefono de direccion general",
+      "teléfono de dirección general",
       "numero de direccion",
       "número de dirección",
+      "numero de direccion general",
+      "número de dirección general",
       "extension de direccion",
       "extensión de dirección",
-    ])
+      "extension de direccion general",
+      "extensión de dirección general",
+      "contacto de direccion",
+      "contacto de dirección",
+    ]) ||
+    (contieneAlgunaFrase(texto, ["direccion", "dirección"]) &&
+      solicitaTelefonoOExtension(texto))
   ) {
     return {
       tipo: "texto",
@@ -2410,6 +2385,93 @@ function construirRespuestaFija(texto) {
   }
 
   if (
+    texto === "op_btn_ubicacion" ||
+    contieneAlgunaFrase(texto, [
+      "ubicacion del itsm",
+      "ubicación del itsm",
+      "ubicacion del instituto",
+      "ubicación del instituto",
+      "ubicacion",
+      "ubicación",
+      "donde esta",
+      "dónde está",
+      "donde queda",
+      "dónde queda",
+      "donde se ubica",
+      "dónde se ubica",
+      "como llegar",
+      "cómo llegar",
+      "mapa",
+      "google maps",
+      "direccion del instituto",
+      "dirección del instituto",
+      "direccion del tecnologico",
+      "dirección del tecnológico",
+      "direccion del tec",
+      "dirección del tec",
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje:
+        "📍 *UBICACIÓN DEL INSTITUTO TECNOLÓGICO SUPERIOR DE MISANTLA*\n\n" +
+        "• *Dirección:* Km. 1.8 Carretera a Loma del Cojolite\n" +
+        "• *C.P.:* 93850\n" +
+        "• *Ciudad:* Misantla, Veracruz, México\n\n" +
+        "🗺️ *Google Maps*\n" +
+        "https://maps.app.goo.gl/UYednfvUfUB2Ec1C9\n\n" +
+        "🕒 *Horarios de atención*\n" +
+        "• Lunes a viernes: 9:00 a 14:00 y de 15:00 a 17:00 horas\n" +
+        "• Sábados: 9:00 a 14:00 horas\n\n" +
+        "✨ Si deseas información más detallada selecciona *Especifico* en el menú.",
+    };
+  }
+
+  if (
+    texto === "op_btn_virtual" ||
+    contieneAlgunaFrase(texto, [
+      "educacion virtual tecnm",
+      "educación virtual tecnm",
+      "educacion virtual",
+      "educación virtual",
+      "virtual tecnm",
+      "modalidad virtual",
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje:
+        "💻 *EDUCACIÓN VIRTUAL TECNM*\n\n" +
+        "☎️ *Contacto*\n" +
+        `• Teléfono: ${TELEFONO_VIRTUAL}\n` +
+        `• Extensión: ${EXTENSIONES.subdireccionAcademica}\n` +
+        "• Área: Subdirección Académica\n\n" +
+        "🌐 *Enlace*\n" +
+        "• virtual.tecnm.mx\n\n" +
+        "📚 *Carreras disponibles en esta modalidad*\n" +
+        "• Ingeniería Industrial\n" +
+        "• Ingeniería en Sistemas Computacionales\n" +
+        "• Ingeniería en Gestión Empresarial\n\n" +
+        "✨ Si deseas información más detallada selecciona *Especifico* en el menú.",
+    };
+  }
+
+  if (
+    texto === "op_btn_regresatec" ||
+    contieneAlgunaFrase(texto, ["regresatec", "regresa tec", "regresa"])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje:
+        "🔁 *REGRESATEC*\n\n" +
+        "☎️ *Contactos*\n" +
+        `• Subdirección Académica: ${TELEFONO_VIRTUAL} ext. ${EXTENSIONES.subdireccionAcademica}\n` +
+        `• Estudios Profesionales: ${TELEFONO_BASE} ext. ${EXTENSIONES.divisionEstudios}\n\n` +
+        "✨ Si deseas información más detallada selecciona *Especifico* en el menú.",
+    };
+  }
+
+  if (
     contieneAlgunaFrase(texto, [
       "pagos",
       "precios",
@@ -2442,13 +2504,15 @@ Nunca menciones nombres de modelos.
 Nunca menciones documentos, archivos, enlaces internos, fuentes recuperadas ni herramientas.
 Responde como asistente virtual institucional del Instituto Tecnológico Superior de Misantla.
 Da respuestas directas, claras, útiles y breves.
-Si te preguntan por dirección, incluye también el enlace de Google Maps.
+Si te preguntan por dirección institucional, ubicación o cómo llegar, incluye también el enlace de Google Maps.
+Si te preguntan por número, teléfono, extensión o contacto de Dirección General, responde con el teléfono ${TELEFONO_BASE}, extensión ${EXTENSIONES.direccion}, y el correo dir_itsmisantla@itsm.edu.mx.
+No confundas "número de dirección" o "teléfono de dirección" con ubicación física.
 Si te preguntan por horarios, responde con los horarios exactos.
 Si te preguntan por algún departamento o por servicios escolares, incluye el teléfono completo y la extensión correspondiente.
 Si preguntan por pagos, responde que deben comunicarse con Control Escolar al teléfono ${TELEFONO_BASE}, extensiones ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}.
 Si preguntan por Educación Virtual TECNM, incluye el teléfono ${TELEFONO_VIRTUAL} ext. ${EXTENSIONES.subdireccionAcademica}, el enlace virtual.tecnm.mx y las carreras disponibles.
 Si preguntan por RegresaTec, incluye Subdirección Académica ${TELEFONO_VIRTUAL} ext. ${EXTENSIONES.subdireccionAcademica} y Estudios Profesionales ${TELEFONO_BASE} ext. ${EXTENSIONES.divisionEstudios}.
-Si el usuario muestra molestia, frustración o solicita hablar con una persona, indícale que puede comunicarse por WhatsApp al ${WHATSAPP_ASISTENCIA}.
+Si el usuario muestra molestia, frustración o solicita hablar con una persona, responde que su solicitud fue registrada, que en unos minutos será atendido por un representante real y que, si necesita una respuesta más rápida, puede realizar una llamada normal al ${TELEFONO_BOT_LLAMADAS}. No digas que escriba por WhatsApp a ese número.
 No inventes datos.
 No envíes al usuario al menú salvo que realmente no tengas respuesta.
 
@@ -2518,7 +2582,7 @@ ${textoUsuario}
 }
 
 async function subirMediaWhatsApp(archivo) {
-  const url = `https://graph.facebook.com/v22.0/${idNumeroTelefono}/media`;
+  const url = `https://graph.facebook.com/v25.0/${idNumeroTelefono}/media`;
 
   const formData = new FormData();
   formData.append("messaging_product", "whatsapp");
@@ -2561,7 +2625,7 @@ async function enviarArchivoWhatsApp(numeroDestino, archivo, caption = "") {
     const esImagen = archivo.mimetype.startsWith("image/");
     const tipo = esImagen ? "image" : "document";
 
-    const url = `https://graph.facebook.com/v22.0/${idNumeroTelefono}/messages`;
+    const url = `https://graph.facebook.com/v25.0/${idNumeroTelefono}/messages`;
 
     const payload = {
       messaging_product: "whatsapp",
@@ -2614,7 +2678,7 @@ async function enviarArchivoWhatsApp(numeroDestino, archivo, caption = "") {
 }
 
 async function enviarTextoWhatsApp(numeroDestino, texto) {
-  const url = `https://graph.facebook.com/v22.0/${idNumeroTelefono}/messages`;
+  const url = `https://graph.facebook.com/v25.0/${idNumeroTelefono}/messages`;
 
   const payload = {
     messaging_product: "whatsapp",
@@ -2651,7 +2715,7 @@ async function enviarTexto(numeroDestino, texto) {
 }
 
 async function enviarImagen(numeroDestino, imageUrl, caption = "") {
-  const url = `https://graph.facebook.com/v22.0/${idNumeroTelefono}/messages`;
+  const url = `https://graph.facebook.com/v25.0/${idNumeroTelefono}/messages`;
 
   const payload = {
     messaging_product: "whatsapp",
