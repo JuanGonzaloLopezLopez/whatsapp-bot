@@ -137,7 +137,7 @@ Residencias: 101
 División de Estudios: 166
 Vinculación: 103
 
-CARRERAS DE LICENCIATURA:
+OFERTA EDUCATIVA:
 - Ingeniería Industrial
 - Ingeniería en Sistemas Computacionales
 - Ingeniería Electromecánica
@@ -154,6 +154,18 @@ POSGRADOS:
 - Maestría en Sistemas Computacionales
 - Maestría en Ciencias de la Ingeniería
 - Doctorado en Ciencias de la Ingeniería
+
+INFORMACIÓN GENERAL DE CARRERAS:
+Ingeniería Industrial: procesos, calidad, productividad, logística, seguridad industrial y mejora continua.
+Ingeniería en Sistemas Computacionales: programación, desarrollo de software, bases de datos, redes, inteligencia artificial y sistemas informáticos.
+Ingeniería Electromecánica: electricidad, mecánica, mantenimiento, automatización, máquinas eléctricas y sistemas industriales.
+Ingeniería Bioquímica: procesos biotecnológicos, alimentos, laboratorio, control de calidad y transformación de materias primas.
+Ingeniería Civil: construcción, estructuras, obras, caminos, hidráulica, materiales y supervisión de proyectos.
+Ingeniería en Tecnologías de la Información y Comunicaciones: redes, telecomunicaciones, infraestructura tecnológica, ciberseguridad, servicios digitales y desarrollo tecnológico.
+Ingeniería Ambiental: gestión ambiental, tratamiento de agua, residuos, impacto ambiental, conservación y sustentabilidad.
+Ingeniería en Gestión Empresarial: administración, emprendimiento, mercadotecnia, finanzas, proyectos y gestión de organizaciones.
+Ingeniería Petrolera: exploración, extracción, producción, yacimientos, perforación y seguridad en procesos petroleros.
+Licenciatura en Gastronomía: cocina, alimentos, bebidas, higiene, administración gastronómica, innovación culinaria y servicios gastronómicos.
 
 ADMISIÓN:
 El proceso de admisión es gratuito.
@@ -594,9 +606,7 @@ app.get("/panel", validarAdmin, (req, res) => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <style>
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     html, body {
       height: 100%;
@@ -640,9 +650,7 @@ app.get("/panel", validarAdmin, (req, res) => {
       border-bottom: 1px solid #eee;
     }
 
-    .buscador {
-      padding: 12px;
-    }
+    .buscador { padding: 12px; }
 
     .buscador input {
       width: 100%;
@@ -668,9 +676,7 @@ app.get("/panel", validarAdmin, (req, res) => {
       font-size: 13px;
     }
 
-    .acciones button:hover {
-      background: #064c44;
-    }
+    .acciones button:hover { background: #064c44; }
 
     #contactos {
       flex: 1;
@@ -685,22 +691,15 @@ app.get("/panel", validarAdmin, (req, res) => {
       position: relative;
     }
 
-    .contacto:hover {
-      background: #f5f5f5;
-    }
-
-    .contacto.activo {
-      background: #e7f3ef;
-    }
+    .contacto:hover { background: #f5f5f5; }
+    .contacto.activo { background: #e7f3ef; }
 
     .contacto.requiere {
       background: #dcfce7;
       border-left: 5px solid #16a34a;
     }
 
-    .contacto.requiere.activo {
-      background: #bbf7d0;
-    }
+    .contacto.requiere.activo { background: #bbf7d0; }
 
     .numero {
       font-weight: bold;
@@ -779,9 +778,7 @@ app.get("/panel", validarAdmin, (req, res) => {
       gap: 12px;
     }
 
-    .chat-title {
-      font-weight: bold;
-    }
+    .chat-title { font-weight: bold; }
 
     .chat-subtitle {
       margin-top: 4px;
@@ -805,37 +802,17 @@ app.get("/panel", validarAdmin, (req, res) => {
       font-size: 13px;
     }
 
-    .btn-tomar {
-      background: #0f766e;
-    }
+    .btn-tomar { background: #0f766e; }
+    .btn-tomar:hover { background: #115e59; }
 
-    .btn-tomar:hover {
-      background: #115e59;
-    }
+    .btn-liberar { background: #2563eb; }
+    .btn-liberar:hover { background: #1d4ed8; }
 
-    .btn-liberar {
-      background: #2563eb;
-    }
+    .btn-eliminar { background: #dc2626; }
+    .btn-eliminar:hover { background: #b91c1c; }
 
-    .btn-liberar:hover {
-      background: #1d4ed8;
-    }
-
-    .btn-eliminar {
-      background: #dc2626;
-    }
-
-    .btn-eliminar:hover {
-      background: #b91c1c;
-    }
-
-    .btn-enviar {
-      background: #075e54;
-    }
-
-    .btn-enviar:hover {
-      background: #064c44;
-    }
+    .btn-enviar { background: #075e54; }
+    .btn-enviar:hover { background: #064c44; }
 
     .mensajes {
       flex: 1;
@@ -943,18 +920,14 @@ app.get("/panel", validarAdmin, (req, res) => {
       font-size: 13px;
     }
 
-    .archivo-label:hover {
-      background: #d1d5db;
-    }
+    .archivo-label:hover { background: #d1d5db; }
 
     .archivo-label.deshabilitado {
       opacity: 0.5;
       cursor: not-allowed;
     }
 
-    #archivoManual {
-      display: none;
-    }
+    #archivoManual { display: none; }
 
     #nombreArchivo {
       font-size: 11px;
@@ -966,9 +939,7 @@ app.get("/panel", validarAdmin, (req, res) => {
     }
 
     @media (max-width: 850px) {
-      .contenedor {
-        grid-template-columns: 1fr;
-      }
+      .contenedor { grid-template-columns: 1fr; }
 
       .lista {
         height: 35vh;
@@ -976,22 +947,15 @@ app.get("/panel", validarAdmin, (req, res) => {
         border-bottom: 1px solid #ddd;
       }
 
-      .chat {
-        height: calc(65vh - 56px);
-      }
-
-      .burbuja {
-        max-width: 90%;
-      }
+      .chat { height: calc(65vh - 56px); }
+      .burbuja { max-width: 90%; }
 
       .chat-header {
         align-items: flex-start;
         flex-direction: column;
       }
 
-      .chat-actions {
-        justify-content: flex-start;
-      }
+      .chat-actions { justify-content: flex-start; }
 
       .respuesta {
         align-items: stretch;
@@ -1003,9 +967,7 @@ app.get("/panel", validarAdmin, (req, res) => {
         width: 100%;
       }
 
-      #nombreArchivo {
-        max-width: none;
-      }
+      #nombreArchivo { max-width: none; }
     }
   </style>
 </head>
@@ -1731,7 +1693,7 @@ function obtenerSesion(numeroCliente) {
 }
 
 function normalizarTexto(texto) {
-  return texto
+  return String(texto || "")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -1739,8 +1701,20 @@ function normalizarTexto(texto) {
     .trim();
 }
 
+function textoPlano(texto) {
+  return normalizarTexto(texto)
+    .replace(/[^a-z0-9ñ\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function contieneAlgunaFrase(texto, frases) {
-  return frases.some((frase) => texto.includes(frase));
+  const base = textoPlano(texto);
+
+  return frases.some((frase) => {
+    const limpia = textoPlano(frase);
+    return base.includes(limpia);
+  });
 }
 
 function solicitaTelefonoOExtension(texto) {
@@ -1753,8 +1727,7 @@ function solicitaTelefonoOExtension(texto) {
     "núm",
     "extension",
     "extensión",
-    "ext.",
-    "ext ",
+    "ext",
     "contacto",
     "llamar",
     "llamada",
@@ -1818,6 +1791,8 @@ function detectarSolicitudHumana(texto) {
 }
 
 function esConsultaDemasiadoAmbigua(texto) {
+  const consulta = textoPlano(texto);
+
   const consultasAmbiguas = [
     "",
     "?",
@@ -1828,6 +1803,7 @@ function esConsultaDemasiadoAmbigua(texto) {
     "ayúdame",
     "informacion",
     "información",
+    "info",
     "quiero informacion",
     "quiero información",
     "necesito informacion",
@@ -1846,13 +1822,13 @@ function esConsultaDemasiadoAmbigua(texto) {
     "cómo le hago",
     "explicame",
     "explícame",
-  ];
+  ].map(textoPlano);
 
-  return consultasAmbiguas.includes(texto);
+  return consultasAmbiguas.includes(consulta);
 }
 
 function esRespuestaSinDato(respuesta) {
-  const texto = normalizarTexto(respuesta || "");
+  const texto = textoPlano(respuesta || "");
 
   const frases = [
     "no cuento con ese dato",
@@ -1931,10 +1907,10 @@ function esSaludoOInicio(texto) {
     "tengo dudas",
     "tengo una consulta",
     "necesito ayuda",
-    "informes"
+    "informes",
   ];
 
-  return frasesSaludo.some((frase) => texto.includes(frase));
+  return contieneAlgunaFrase(texto, frasesSaludo);
 }
 
 function mensajeTelefonoConExtension(
@@ -1953,6 +1929,265 @@ function mensajeTelefonoConExtension(
   }
 
   return mensaje;
+}
+
+function mensajeHorarios() {
+  return (
+    "🕒 *HORARIOS DE ATENCIÓN*\n\n" +
+    "• *Lunes a viernes:* 9:00 a 14:00 y de 15:00 a 17:00 horas\n" +
+    "• *Sábados:* 9:00 a 14:00 horas\n\n" +
+    "📍 *Ubicación:* Km. 1.8 Carretera a Loma del Cojolite, Misantla, Veracruz.\n\n" +
+    "✨ Si deseas información más detallada selecciona *Especifico* en el menú."
+  );
+}
+
+function detectarCarrera(texto) {
+  const t = textoPlano(texto);
+
+  if (contieneAlgunaFrase(t, ["industrial", "ing industrial", "ingenieria industrial", "ingeneria industrial"])) {
+    return "industrial";
+  }
+
+  if (
+    contieneAlgunaFrase(t, [
+      "sistemas computacionales",
+      "sistemas",
+      "sistema",
+      "ing sistemas",
+      "ing en sistemas",
+      "ing sistemas computacionales",
+      "ingenieria en sistemas",
+      "ingeneria en sistemas",
+      "isc",
+      "computacionales",
+      "computacion",
+      "programacion",
+      "software",
+    ])
+  ) {
+    return "sistemas";
+  }
+
+  if (
+    contieneAlgunaFrase(t, [
+      "electromecanica",
+      "electro mecanica",
+      "electromecanico",
+      "electromecan",
+      "ing electromecanica",
+      "ingenieria electromecanica",
+      "mecanica electrica",
+    ])
+  ) {
+    return "electromecanica";
+  }
+
+  if (
+    contieneAlgunaFrase(t, [
+      "bioquimica",
+      "bio quimica",
+      "bioquim",
+      "biokimica",
+      "ing bioquimica",
+      "ingenieria bioquimica",
+      "quimica",
+    ])
+  ) {
+    return "bioquimica";
+  }
+
+  if (
+    contieneAlgunaFrase(t, [
+      "civil",
+      "ing civil",
+      "ingenieria civil",
+      "ingeneria civil",
+      "construccion",
+      "estructuras",
+    ])
+  ) {
+    return "civil";
+  }
+
+  if (
+    contieneAlgunaFrase(t, [
+      "tecnologias de la informacion",
+      "tecnologia de la informacion",
+      "tecnologias informacion",
+      "tecnologia informacion",
+      "informacion y comunicaciones",
+      "informacion y comunicacion",
+      "tics",
+      "tic",
+      "itics",
+      "itc",
+      "telecomunicaciones",
+      "comunicaciones",
+    ])
+  ) {
+    return "tic";
+  }
+
+  if (
+    contieneAlgunaFrase(t, [
+      "ambiental",
+      "ing ambiental",
+      "ingenieria ambiental",
+      "medio ambiente",
+      "ambiente",
+      "sustentabilidad",
+    ])
+  ) {
+    return "ambiental";
+  }
+
+  if (
+    contieneAlgunaFrase(t, [
+      "gestion empresarial",
+      "gestión empresarial",
+      "ing gestion",
+      "ing en gestion",
+      "ingenieria en gestion",
+      "ingeneria en gestion",
+      "empresarial",
+      "administracion",
+      "administración",
+      "ige",
+    ])
+  ) {
+    return "gestion";
+  }
+
+  if (
+    contieneAlgunaFrase(t, [
+      "petrolera",
+      "petroleo",
+      "petróleo",
+      "ing petrolera",
+      "ingenieria petrolera",
+      "ingeneria petrolera",
+      "yacimientos",
+      "perforacion",
+    ])
+  ) {
+    return "petrolera";
+  }
+
+  if (
+    contieneAlgunaFrase(t, [
+      "gastronomia",
+      "gastronomía",
+      "gastronom",
+      "lic gastronomia",
+      "licenciatura en gastronomia",
+      "cocina",
+      "alimentos y bebidas",
+    ])
+  ) {
+    return "gastronomia";
+  }
+
+  return null;
+}
+
+function mensajeCarrera(claveCarrera) {
+  const carreras = {
+    industrial: {
+      nombre: "Ingeniería Industrial",
+      emoji: "🏭",
+      descripcion:
+        "forma profesionistas capaces de mejorar procesos productivos, optimizar recursos, analizar sistemas de trabajo y aplicar herramientas de calidad, logística, seguridad industrial y mejora continua.",
+      areas:
+        "procesos industriales, control de calidad, productividad, logística, administración de operaciones, seguridad e higiene y mejora continua.",
+    },
+    sistemas: {
+      nombre: "Ingeniería en Sistemas Computacionales",
+      emoji: "💻",
+      descripcion:
+        "se enfoca en el desarrollo de soluciones tecnológicas mediante programación, bases de datos, redes, desarrollo web, aplicaciones, inteligencia artificial y administración de sistemas informáticos.",
+      areas:
+        "programación, desarrollo de software, bases de datos, redes, inteligencia artificial, aplicaciones móviles, sistemas web y soporte tecnológico.",
+    },
+    electromecanica: {
+      nombre: "Ingeniería Electromecánica",
+      emoji: "⚙️",
+      descripcion:
+        "integra conocimientos de electricidad, mecánica, mantenimiento, automatización y sistemas industriales para diseñar, operar y conservar equipos electromecánicos.",
+      areas:
+        "mantenimiento industrial, máquinas eléctricas, automatización, diseño mecánico, instalaciones eléctricas y sistemas de control.",
+    },
+    bioquimica: {
+      nombre: "Ingeniería Bioquímica",
+      emoji: "🧪",
+      descripcion:
+        "se orienta al análisis, diseño y control de procesos relacionados con alimentos, biotecnología, laboratorio, transformación de materias primas y control de calidad.",
+      areas:
+        "biotecnología, procesos alimentarios, laboratorio, control de calidad, microbiología, química aplicada y producción industrial.",
+    },
+    civil: {
+      nombre: "Ingeniería Civil",
+      emoji: "🏗️",
+      descripcion:
+        "prepara profesionistas para participar en la planeación, diseño, construcción, supervisión y mantenimiento de obras de infraestructura.",
+      areas:
+        "estructuras, construcción, hidráulica, vías terrestres, materiales, topografía, costos y supervisión de obra.",
+    },
+    tic: {
+      nombre: "Ingeniería en Tecnologías de la Información y Comunicaciones",
+      emoji: "🌐",
+      descripcion:
+        "se enfoca en el uso, administración e integración de tecnologías digitales, redes, telecomunicaciones, servicios informáticos y seguridad tecnológica.",
+      areas:
+        "redes, telecomunicaciones, ciberseguridad, infraestructura tecnológica, servicios digitales, desarrollo web y administración de tecnologías.",
+    },
+    ambiental: {
+      nombre: "Ingeniería Ambiental",
+      emoji: "🌱",
+      descripcion:
+        "forma profesionistas capaces de analizar, prevenir y atender problemas ambientales mediante soluciones sustentables y gestión responsable de recursos.",
+      areas:
+        "tratamiento de agua, residuos, impacto ambiental, legislación ambiental, conservación, gestión ambiental y sustentabilidad.",
+    },
+    gestion: {
+      nombre: "Ingeniería en Gestión Empresarial",
+      emoji: "📊",
+      descripcion:
+        "combina conocimientos de administración, innovación, emprendimiento, finanzas, mercadotecnia y gestión de proyectos para mejorar organizaciones.",
+      areas:
+        "administración, emprendimiento, finanzas, mercadotecnia, recursos humanos, proyectos, innovación y gestión organizacional.",
+    },
+    petrolera: {
+      nombre: "Ingeniería Petrolera",
+      emoji: "🛢️",
+      descripcion:
+        "se relaciona con actividades de exploración, producción, perforación y aprovechamiento de hidrocarburos, considerando seguridad y eficiencia en procesos petroleros.",
+      areas:
+        "yacimientos, perforación, producción petrolera, seguridad industrial, geología aplicada y procesos de extracción.",
+    },
+    gastronomia: {
+      nombre: "Licenciatura en Gastronomía",
+      emoji: "🍽️",
+      descripcion:
+        "forma profesionistas en preparación de alimentos y bebidas, técnicas culinarias, higiene, administración gastronómica e innovación en servicios alimentarios.",
+      areas:
+        "cocina, repostería, alimentos y bebidas, higiene, administración de restaurantes, costos, servicio y creatividad culinaria.",
+    },
+  };
+
+  const carrera = carreras[claveCarrera];
+
+  if (!carrera) return null;
+
+  return (
+    `${carrera.emoji} *${carrera.nombre.toUpperCase()}*\n\n` +
+    `📌 *Descripción general*\n` +
+    `Esta carrera ${carrera.descripcion}\n\n` +
+    `📚 *Áreas que se trabajan*\n` +
+    `${carrera.areas}\n\n` +
+    `☎️ *Más información académica*\n` +
+    `• Jefes de Carrera: ${TELEFONO_BASE} ext. ${EXTENSIONES.jefesCarrera}\n\n` +
+    `✨ Si deseas información más detallada sobre esta carrera, selecciona *Especifico* en el menú.`
+  );
 }
 
 async function enviarMenuPrincipal(numeroDestino) {
@@ -2087,6 +2322,47 @@ function construirRespuestaFija(texto) {
   }
 
   if (
+    contieneAlgunaFrase(texto, [
+      "horario",
+      "horarios",
+      "orario",
+      "orarios",
+      "horario de atencion",
+      "horarios de atencion",
+      "hora de atencion",
+      "horas de atencion",
+      "a que hora atienden",
+      "que hora atienden",
+      "en que horario atienden",
+      "cuando atienden",
+      "dias de atencion",
+      "días de atención",
+      "atienden los sabados",
+      "atienden sabado",
+      "sabados atienden",
+      "sabado atienden",
+      "abren",
+      "cierran",
+      "a que hora abren",
+      "a que hora cierran",
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje: mensajeHorarios(),
+    };
+  }
+
+  const carreraDetectada = detectarCarrera(texto);
+
+  if (carreraDetectada) {
+    return {
+      tipo: "texto",
+      mensaje: mensajeCarrera(carreraDetectada),
+    };
+  }
+
+  if (
     texto === "op_btn_oferta" ||
     contieneAlgunaFrase(texto, [
       "oferta educativa",
@@ -2094,6 +2370,12 @@ function construirRespuestaFija(texto) {
       "oferta académica",
       "carreras",
       "carrera",
+      "que carreras tienen",
+      "que carreras ofrecen",
+      "ingenierias",
+      "ingenierías",
+      "ingenieria",
+      "ingeneria",
       "postgrados",
       "posgrados",
       "maestrias",
@@ -2121,7 +2403,7 @@ function construirRespuestaFija(texto) {
         "• Maestría en Sistemas Computacionales\n" +
         "• Maestría en Ciencias de la Ingeniería\n" +
         "• Doctorado en Ciencias de la Ingeniería\n\n" +
-        '✨ Si deseas información más detallada selecciona *Especifico* en el menú.',
+        '✨ Puedes pedir información de una carrera escribiendo, por ejemplo: *info de ing. industrial* o *información de sistemas*.',
       imageUrl: URL_IMAGEN_OFERTA,
       caption: "🎓 Oferta educativa del Instituto Tecnológico Superior de Misantla",
     };
@@ -2504,10 +2786,16 @@ Nunca menciones nombres de modelos.
 Nunca menciones documentos, archivos, enlaces internos, fuentes recuperadas ni herramientas.
 Responde como asistente virtual institucional del Instituto Tecnológico Superior de Misantla.
 Da respuestas directas, claras, útiles y breves.
+Tolera abreviaturas como "info", "ing", "ing.", "sist", "tec", y faltas de ortografía comunes como "ingeneria" o falta de acentos.
+
+Si preguntan por horarios, responde:
+Lunes a viernes: 9:00 a 14:00 y de 15:00 a 17:00 horas.
+Sábados: 9:00 a 14:00 horas.
+
+Si preguntan por una carrera específica, responde con una descripción general, áreas que se trabajan y el contacto de Jefes de Carrera: ${TELEFONO_BASE} ext. ${EXTENSIONES.jefesCarrera}.
 Si te preguntan por dirección institucional, ubicación o cómo llegar, incluye también el enlace de Google Maps.
 Si te preguntan por número, teléfono, extensión o contacto de Dirección General, responde con el teléfono ${TELEFONO_BASE}, extensión ${EXTENSIONES.direccion}, y el correo dir_itsmisantla@itsm.edu.mx.
 No confundas "número de dirección" o "teléfono de dirección" con ubicación física.
-Si te preguntan por horarios, responde con los horarios exactos.
 Si te preguntan por algún departamento o por servicios escolares, incluye el teléfono completo y la extensión correspondiente.
 Si preguntan por pagos, responde que deben comunicarse con Control Escolar al teléfono ${TELEFONO_BASE}, extensiones ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}.
 Si preguntan por Educación Virtual TECNM, incluye el teléfono ${TELEFONO_VIRTUAL} ext. ${EXTENSIONES.subdireccionAcademica}, el enlace virtual.tecnm.mx y las carreras disponibles.
