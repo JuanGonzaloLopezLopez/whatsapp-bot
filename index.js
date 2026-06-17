@@ -163,7 +163,7 @@ Ingeniería Bioquímica: procesos biotecnológicos, alimentos, laboratorio, cont
 Ingeniería Civil: construcción, estructuras, obras, caminos, hidráulica, materiales y supervisión de proyectos.
 Ingeniería en Tecnologías de la Información y Comunicaciones: redes, telecomunicaciones, infraestructura tecnológica, ciberseguridad, servicios digitales y desarrollo tecnológico.
 Ingeniería Ambiental: gestión ambiental, tratamiento de agua, residuos, impacto ambiental, conservación y sustentabilidad.
-Ingeniería en Gestión Empresarial: administración, emprendimiento, mercadotecnia, finanzas, proyectos y gestión de organizaciones.
+Ingeniería en Gestión Empresarial: administración, emprendimiento, finanzas, proyectos y gestión de organizaciones.
 Ingeniería Petrolera: exploración, extracción, producción, yacimientos, perforación y seguridad en procesos petroleros.
 Licenciatura en Gastronomía: cocina, alimentos, bebidas, higiene, administración gastronómica, innovación culinaria y servicios gastronómicos.
 
@@ -1529,6 +1529,7 @@ async function procesarMensajeEntrante(mensaje) {
         "Por favor, escribe tu consulta en texto o selecciona una opción del menú."
     );
 
+    await esperar(800);
     await enviarMenuPrincipal(numeroCliente);
     return;
   } else {
@@ -1548,6 +1549,7 @@ async function procesarMensajeEntrante(mensaje) {
       "⚠️ *Por ahora solo puedo atender mensajes de texto o respuestas del menú.*"
     );
 
+    await esperar(800);
     await enviarMenuPrincipal(numeroCliente);
     return;
   }
@@ -1630,10 +1632,8 @@ async function procesarMensajeEntrante(mensaje) {
     if (respuestaFija.tipo === "texto") {
       await enviarTexto(numeroCliente, respuestaFija.mensaje);
 
-      if (vieneDeLista) {
-        await esperar(800);
-        await enviarMenuPrincipal(numeroCliente);
-      }
+      await esperar(900);
+      await enviarMenuPrincipal(numeroCliente);
     } else if (respuestaFija.tipo === "texto_e_imagen") {
       await enviarTexto(numeroCliente, respuestaFija.mensaje);
 
@@ -1645,10 +1645,8 @@ async function procesarMensajeEntrante(mensaje) {
         respuestaFija.caption || ""
       );
 
-      if (vieneDeLista) {
-        await esperar(2500);
-        await enviarMenuPrincipal(numeroCliente);
-      }
+      await esperar(2200);
+      await enviarMenuPrincipal(numeroCliente);
     }
 
     return;
@@ -1876,7 +1874,12 @@ function esSaludoOInicio(texto) {
     "buen dia",
     "buenas tardes",
     "buenas noches",
+    "hola buenos dias",
+    "hola buen dia",
+    "hola buenas tardes",
+    "hola buenas noches",
     "que tal",
+    "hola que tal",
     "disculpe",
     "disculpa",
     "oye",
@@ -1898,7 +1901,55 @@ function esSaludoOInicio(texto) {
     "quisiera informes",
   ].map(textoPlano);
 
-  return saludosExactos.includes(base);
+  if (saludosExactos.includes(base)) {
+    return true;
+  }
+
+  const palabrasDeConsulta = [
+    "ingenieria",
+    "ingeneria",
+    "ing ",
+    "ing.",
+    "carrera",
+    "carreras",
+    "horario",
+    "horarios",
+    "sabado",
+    "sabados",
+    "sábados",
+    "telefono",
+    "numero",
+    "número",
+    "direccion",
+    "ubicacion",
+    "fichas",
+    "admision",
+    "requisitos",
+    "pagos",
+    "costos",
+    "redes",
+    "facebook",
+    "instagram",
+    "tiktok",
+  ];
+
+  if (contieneAlgunaFrase(base, palabrasDeConsulta)) {
+    return false;
+  }
+
+  const iniciosSaludo = [
+    "hola",
+    "ola",
+    "buenos dias",
+    "buen dia",
+    "buenas tardes",
+    "buenas noches",
+    "que tal",
+  ];
+
+  const pocasPalabras = base.split(" ").filter(Boolean).length <= 5;
+
+  return pocasPalabras && contieneAlgunaFrase(base, iniciosSaludo);
 }
 
 function mensajeTelefonoConExtension(
