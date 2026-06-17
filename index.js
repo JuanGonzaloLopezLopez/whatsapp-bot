@@ -1624,18 +1624,6 @@ async function procesarMensajeEntrante(mensaje) {
     return;
   }
 
-  if (esSaludoOInicio(textoNormalizado)) {
-    sesiones.set(numeroCliente, {
-      ...sesionActual,
-      modoEspecifico: false,
-      estado: "menu_principal",
-      actualizadaEn: Date.now(),
-    });
-
-    await enviarMenuPrincipal(numeroCliente);
-    return;
-  }
-
   const respuestaFija = construirRespuestaFija(textoNormalizado);
 
   if (respuestaFija) {
@@ -1663,6 +1651,18 @@ async function procesarMensajeEntrante(mensaje) {
       }
     }
 
+    return;
+  }
+
+  if (esSaludoOInicio(textoNormalizado)) {
+    sesiones.set(numeroCliente, {
+      ...sesionActual,
+      modoEspecifico: false,
+      estado: "menu_principal",
+      actualizadaEn: Date.now(),
+    });
+
+    await enviarMenuPrincipal(numeroCliente);
     return;
   }
 
@@ -1864,53 +1864,41 @@ function mensajeAsistenciaReal() {
 }
 
 function esSaludoOInicio(texto) {
-  const frasesSaludo = [
+  const base = textoPlano(texto);
+
+  const saludosExactos = [
     "hola",
     "ola",
     "holaa",
     "holi",
     "holis",
     "buenos dias",
-    "buen día",
     "buen dia",
     "buenas tardes",
     "buenas noches",
     "que tal",
-    "qué tal",
-    "una pregunta",
-    "una duda",
     "disculpe",
     "disculpa",
     "oye",
     "oiga",
+    "menu",
+    "menú",
+    "inicio",
     "informacion",
     "información",
+    "info",
     "quiero informacion",
     "quiero información",
-    "me podrias ayudar",
-    "me podrías ayudar",
-    "ayuda",
     "necesito informacion",
     "necesito información",
-    "tengo una duda",
-    "tengo una pregunta",
-    "quisiera informacion",
-    "quisiera información",
-    "quisiera informes",
-    "quiero informes",
-    "me puede ayudar",
-    "me puedes ayudar",
-    "puede ayudarme",
-    "puedes ayudarme",
-    "quiero preguntar",
-    "quiero hacer una pregunta",
-    "tengo dudas",
-    "tengo una consulta",
+    "ayuda",
     "necesito ayuda",
     "informes",
-  ];
+    "quiero informes",
+    "quisiera informes",
+  ].map(textoPlano);
 
-  return contieneAlgunaFrase(texto, frasesSaludo);
+  return saludosExactos.includes(base);
 }
 
 function mensajeTelefonoConExtension(
@@ -1944,7 +1932,16 @@ function mensajeHorarios() {
 function detectarCarrera(texto) {
   const t = textoPlano(texto);
 
-  if (contieneAlgunaFrase(t, ["industrial", "ing industrial", "ingenieria industrial", "ingeneria industrial"])) {
+  if (
+    contieneAlgunaFrase(t, [
+      "industrial",
+      "ing industrial",
+      "ingenieria industrial",
+      "ingeneria industrial",
+      "ingeniera industrial",
+      "ing. industrial",
+    ])
+  ) {
     return "industrial";
   }
 
@@ -1955,14 +1952,18 @@ function detectarCarrera(texto) {
       "sistema",
       "ing sistemas",
       "ing en sistemas",
+      "ing. en sistemas",
+      "ing. sistemas",
       "ing sistemas computacionales",
       "ingenieria en sistemas",
       "ingeneria en sistemas",
+      "ingeniera en sistemas",
       "isc",
       "computacionales",
       "computacion",
       "programacion",
       "software",
+      "sist",
     ])
   ) {
     return "sistemas";
@@ -1976,6 +1977,7 @@ function detectarCarrera(texto) {
       "electromecan",
       "ing electromecanica",
       "ingenieria electromecanica",
+      "ingeneria electromecanica",
       "mecanica electrica",
     ])
   ) {
@@ -1990,6 +1992,7 @@ function detectarCarrera(texto) {
       "biokimica",
       "ing bioquimica",
       "ingenieria bioquimica",
+      "ingeneria bioquimica",
       "quimica",
     ])
   ) {
@@ -2000,8 +2003,10 @@ function detectarCarrera(texto) {
     contieneAlgunaFrase(t, [
       "civil",
       "ing civil",
+      "ing. civil",
       "ingenieria civil",
       "ingeneria civil",
+      "ingeniera civil",
       "construccion",
       "estructuras",
     ])
@@ -2032,7 +2037,9 @@ function detectarCarrera(texto) {
     contieneAlgunaFrase(t, [
       "ambiental",
       "ing ambiental",
+      "ing. ambiental",
       "ingenieria ambiental",
+      "ingeneria ambiental",
       "medio ambiente",
       "ambiente",
       "sustentabilidad",
@@ -2046,6 +2053,7 @@ function detectarCarrera(texto) {
       "gestion empresarial",
       "gestión empresarial",
       "ing gestion",
+      "ing. gestion",
       "ing en gestion",
       "ingenieria en gestion",
       "ingeneria en gestion",
@@ -2064,6 +2072,7 @@ function detectarCarrera(texto) {
       "petroleo",
       "petróleo",
       "ing petrolera",
+      "ing. petrolera",
       "ingenieria petrolera",
       "ingeneria petrolera",
       "yacimientos",
@@ -2079,6 +2088,7 @@ function detectarCarrera(texto) {
       "gastronomía",
       "gastronom",
       "lic gastronomia",
+      "lic. gastronomia",
       "licenciatura en gastronomia",
       "cocina",
       "alimentos y bebidas",
@@ -2341,6 +2351,18 @@ function construirRespuestaFija(texto) {
       "atienden sabado",
       "sabados atienden",
       "sabado atienden",
+      "trabajan los sabados",
+      "trabajan sabados",
+      "trabajan el sabado",
+      "trabajan sábado",
+      "trabajan los sábados",
+      "laboran los sabados",
+      "laboran sabados",
+      "abren sabado",
+      "abren los sabados",
+      "abierto sabado",
+      "esta abierto sabado",
+      "está abierto sábado",
       "abren",
       "cierran",
       "a que hora abren",
