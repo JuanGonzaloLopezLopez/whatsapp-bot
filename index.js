@@ -81,6 +81,12 @@ const URL_IMAGEN_OFERTA =
 const URL_IMAGEN_FICHAS =
   "https://drive.google.com/uc?export=view&id=1HEHavShxvnpORxW5AbazRHzDMuTQbHUY";
 
+const URL_IMAGEN_VIRTUAL =
+  "https://drive.google.com/uc?export=view&id=1Nq7tSEl0TQlZ5nFq_GS-4PN4e6Gwg8Zc";
+
+const URL_IMAGEN_REGRESATEC =
+  "https://drive.google.com/uc?export=view&id=1i6h0ZGgP2yCb07egtznp6YE0myj3N2As";
+
 const TELEFONO_BASE = "(235) 323-15-45";
 const TELEFONO_VIRTUAL = "(235) 323-25-45";
 const TELEFONO_BOT_LLAMADAS = "235 101 07 97";
@@ -179,6 +185,11 @@ REQUISITOS PARA EXAMEN / ADMISIÓN:
 
 PARA PAGOS:
 Comunicarse con Control Escolar a la extensión 129 o 149.
+
+CURSOS DE VERANO:
+Para información sobre cursos de verano, clases de verano, materias de verano o cursos intersemestrales, se recomienda solicitar información directamente en Control Escolar o con los Jefes de Carrera correspondientes.
+Control Escolar: ${TELEFONO_BASE} ext. ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}
+Jefes de Carrera: ${TELEFONO_BASE} ext. ${EXTENSIONES.jefesCarrera}
 
 EDUCACIÓN VIRTUAL TECNM:
 - Teléfono: ${TELEFONO_VIRTUAL} ext. 134
@@ -617,9 +628,7 @@ app.get("/panel", validarAdmin, (req, res) => {
       color: #111827;
     }
 
-    body {
-      width: 100%;
-    }
+    body { width: 100%; }
 
     header {
       height: 56px;
@@ -1011,26 +1020,17 @@ app.get("/panel", validarAdmin, (req, res) => {
         z-index: 3;
       }
 
-      body.chat-abierto .lista {
-        display: none;
-      }
+      body.chat-abierto .lista { display: none; }
+      body.chat-abierto .chat { display: flex; }
 
-      body.chat-abierto .chat {
-        display: flex;
-      }
-
-      .buscador {
-        padding: 10px;
-      }
+      .buscador { padding: 10px; }
 
       .buscador input {
         font-size: 16px;
         padding: 11px;
       }
 
-      .acciones {
-        padding: 0 10px 10px 10px;
-      }
+      .acciones { padding: 0 10px 10px 10px; }
 
       .acciones button {
         width: 100%;
@@ -1038,21 +1038,10 @@ app.get("/panel", validarAdmin, (req, res) => {
         font-size: 14px;
       }
 
-      .contacto {
-        padding: 14px 14px;
-      }
-
-      .numero {
-        font-size: 15px;
-      }
-
-      .ultimo {
-        font-size: 13px;
-      }
-
-      .fecha {
-        font-size: 11px;
-      }
+      .contacto { padding: 14px 14px; }
+      .numero { font-size: 15px; }
+      .ultimo { font-size: 13px; }
+      .fecha { font-size: 11px; }
 
       .chat-header {
         padding: 9px 10px;
@@ -1060,9 +1049,7 @@ app.get("/panel", validarAdmin, (req, res) => {
         align-items: flex-start;
       }
 
-      .btn-volver {
-        display: inline-block;
-      }
+      .btn-volver { display: inline-block; }
 
       .chat-info {
         flex: 1;
@@ -1070,9 +1057,7 @@ app.get("/panel", validarAdmin, (req, res) => {
         padding-top: 2px;
       }
 
-      .chat-title {
-        font-size: 14px;
-      }
+      .chat-title { font-size: 14px; }
 
       .chat-subtitle {
         font-size: 11px;
@@ -1090,9 +1075,7 @@ app.get("/panel", validarAdmin, (req, res) => {
         font-size: 11px;
       }
 
-      .mensajes {
-        padding: 12px 10px;
-      }
+      .mensajes { padding: 12px 10px; }
 
       .burbuja {
         max-width: 90%;
@@ -1100,13 +1083,8 @@ app.get("/panel", validarAdmin, (req, res) => {
         padding: 9px 10px;
       }
 
-      .badge {
-        font-size: 10px;
-      }
-
-      .meta {
-        font-size: 10px;
-      }
+      .badge { font-size: 10px; }
+      .meta { font-size: 10px; }
 
       .respuesta {
         display: none;
@@ -1136,9 +1114,7 @@ app.get("/panel", validarAdmin, (req, res) => {
         padding: 8px;
       }
 
-      #nombreArchivo {
-        max-width: 100%;
-      }
+      #nombreArchivo { max-width: 100%; }
 
       .btn-enviar {
         width: 100%;
@@ -1146,27 +1122,14 @@ app.get("/panel", validarAdmin, (req, res) => {
         font-size: 14px;
       }
 
-      body.chat-abierto .respuesta {
-        display: flex;
-      }
+      body.chat-abierto .respuesta { display: flex; }
     }
 
     @media (max-width: 850px) and (orientation: landscape) {
-      .contenedor {
-        grid-template-columns: 310px 1fr;
-      }
-
-      .burbuja {
-        max-width: 85%;
-      }
-
-      .respuesta {
-        align-items: stretch;
-      }
-
-      .archivo-zona {
-        max-width: 180px;
-      }
+      .contenedor { grid-template-columns: 310px 1fr; }
+      .burbuja { max-width: 85%; }
+      .respuesta { align-items: stretch; }
+      .archivo-zona { max-width: 180px; }
     }
   </style>
 </head>
@@ -1300,7 +1263,8 @@ app.get("/panel", validarAdmin, (req, res) => {
         if (seleccionado) {
           const actual = conversacionActual();
           if (actual) {
-            renderMensajes(actual);
+            renderMensajes(actual, { forzarScroll: false });
+
             if (actual.mensajesNuevos > 0) {
               await marcarComoLeido(actual);
             }
@@ -1401,7 +1365,7 @@ app.get("/panel", validarAdmin, (req, res) => {
         div.addEventListener("click", async () => {
           seleccionado = conv.numero;
           renderContactos();
-          renderMensajes(conv);
+          renderMensajes(conv, { forzarScroll: true });
           abrirChatMovil();
           await marcarComoLeido(conv);
         });
@@ -1425,7 +1389,16 @@ app.get("/panel", validarAdmin, (req, res) => {
       }
     }
 
-    function renderMensajes(conv) {
+    function renderMensajes(conv, opciones = {}) {
+      const forzarScroll = Boolean(opciones.forzarScroll);
+
+      const alturaAntes = mensajesDiv.scrollHeight;
+      const posicionAntes = mensajesDiv.scrollTop;
+      const distanciaAlFondo =
+        alturaAntes - posicionAntes - mensajesDiv.clientHeight;
+
+      const estabaCercaDelFondo = distanciaAlFondo < 120;
+
       chatHeaderTitle.textContent = "Conversación con " + conv.numero;
 
       if (conv.modoHumano) {
@@ -1510,7 +1483,11 @@ app.get("/panel", validarAdmin, (req, res) => {
         mensajesDiv.appendChild(burbuja);
       });
 
-      mensajesDiv.scrollTop = mensajesDiv.scrollHeight;
+      if (forzarScroll || estabaCercaDelFondo) {
+        mensajesDiv.scrollTop = mensajesDiv.scrollHeight;
+      } else {
+        mensajesDiv.scrollTop = posicionAntes;
+      }
     }
 
     async function tomarSeleccionado() {
@@ -2150,6 +2127,9 @@ function esSaludoOInicio(texto) {
     "requisitos",
     "pagos",
     "costos",
+    "verano",
+    "intersemestral",
+    "intersemestrales",
     "redes",
     "facebook",
     "instagram",
@@ -2199,6 +2179,21 @@ function mensajeHorarios() {
     "• *Lunes a viernes:* 9:00 a 14:00 y de 15:00 a 17:00 horas\n" +
     "• *Sábados:* 9:00 a 14:00 horas\n\n" +
     "📍 *Ubicación:* Km. 1.8 Carretera a Loma del Cojolite, Misantla, Veracruz.\n\n" +
+    "✨ Si deseas información más detallada selecciona *Especifico* en el menú."
+  );
+}
+
+function mensajeCursosVerano() {
+  return (
+    "☀️ *CURSOS DE VERANO / CLASES DE VERANO*\n\n" +
+    "Para información sobre cursos de verano, clases de verano, materias de verano o cursos intersemestrales, puedes solicitar más información en:\n\n" +
+    "🏫 *Control Escolar*\n" +
+    `• Teléfono: ${TELEFONO_BASE}\n` +
+    `• Extensiones: ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}\n\n` +
+    "👨‍🏫 *Jefes de Carrera correspondientes*\n" +
+    `• Teléfono: ${TELEFONO_BASE}\n` +
+    `• Extensión: ${EXTENSIONES.jefesCarrera}\n\n` +
+    "Ellos podrán indicarte disponibilidad, fechas, requisitos y procedimiento según tu carrera.\n\n" +
     "✨ Si deseas información más detallada selecciona *Especifico* en el menú."
   );
 }
@@ -2649,6 +2644,46 @@ function construirRespuestaFija(texto) {
     };
   }
 
+  if (
+    contieneAlgunaFrase(texto, [
+      "cursos de verano",
+      "curso de verano",
+      "clases de verano",
+      "clase de verano",
+      "materias de verano",
+      "materia de verano",
+      "verano",
+      "curso verano",
+      "clase verano",
+      "materia verano",
+      "cursos intersemestrales",
+      "curso intersemestral",
+      "intersemestrales",
+      "intersemestral",
+      "clases intersemestrales",
+      "materias intersemestrales",
+      "adelantar materias",
+      "adelantar materia",
+      "recursamiento de verano",
+      "recursamiento verano",
+      "recursar en verano",
+      "llevar materia en verano",
+      "llevar clases en verano",
+      "puedo llevar materias en verano",
+      "hay cursos en verano",
+      "hay clases en verano",
+      "informacion de cursos de verano",
+      "información de cursos de verano",
+      "info de cursos de verano",
+      "info clases de verano",
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje: mensajeCursosVerano(),
+    };
+  }
+
   const carreraDetectada = detectarCarrera(texto);
 
   if (carreraDetectada) {
@@ -3017,7 +3052,7 @@ function construirRespuestaFija(texto) {
     ])
   ) {
     return {
-      tipo: "texto",
+      tipo: "texto_e_imagen",
       mensaje:
         "💻 *EDUCACIÓN VIRTUAL TECNM*\n\n" +
         "☎️ *Contacto*\n" +
@@ -3031,6 +3066,8 @@ function construirRespuestaFija(texto) {
         "• Ingeniería en Sistemas Computacionales\n" +
         "• Ingeniería en Gestión Empresarial\n\n" +
         "✨ Si deseas información más detallada selecciona *Especifico* en el menú.",
+      imageUrl: URL_IMAGEN_VIRTUAL,
+      caption: "💻 Educación Virtual TECNM",
     };
   }
 
@@ -3039,13 +3076,15 @@ function construirRespuestaFija(texto) {
     contieneAlgunaFrase(texto, ["regresatec", "regresa tec", "regresa"])
   ) {
     return {
-      tipo: "texto",
+      tipo: "texto_e_imagen",
       mensaje:
         "🔁 *REGRESATEC*\n\n" +
         "☎️ *Contactos*\n" +
         `• Subdirección Académica: ${TELEFONO_VIRTUAL} ext. ${EXTENSIONES.subdireccionAcademica}\n` +
         `• Estudios Profesionales: ${TELEFONO_BASE} ext. ${EXTENSIONES.divisionEstudios}\n\n` +
         "✨ Si deseas información más detallada selecciona *Especifico* en el menú.",
+      imageUrl: URL_IMAGEN_REGRESATEC,
+      caption: "🔁 RegresaTec",
     };
   }
 
@@ -3087,6 +3126,8 @@ Tolera abreviaturas como "info", "ing", "ing.", "sist", "tec", y faltas de ortog
 Si preguntan por horarios, responde:
 Lunes a viernes: 9:00 a 14:00 y de 15:00 a 17:00 horas.
 Sábados: 9:00 a 14:00 horas.
+
+Si preguntan por cursos de verano, clases de verano, materias de verano, cursos intersemestrales o adelantar materias en verano, responde que pueden solicitar más información en Control Escolar al teléfono ${TELEFONO_BASE}, extensiones ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}, o hablando con sus Jefes de Carrera correspondientes al teléfono ${TELEFONO_BASE}, extensión ${EXTENSIONES.jefesCarrera}.
 
 Si preguntan por una carrera específica, responde con una descripción general, áreas que se trabajan y el contacto de Jefes de Carrera: ${TELEFONO_BASE} ext. ${EXTENSIONES.jefesCarrera}.
 Si te preguntan por dirección institucional, ubicación o cómo llegar, incluye también el enlace de Google Maps.
