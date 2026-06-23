@@ -218,6 +218,93 @@ function claveFirebase(valor) {
   return String(valor || "").replace(/[.#$\[\]\/]/g, "_");
 }
 
+function nombreArchivoSeguro(nombre) {
+  return String(nombre || "archivo")
+    .replace(/[\\/:*?"<>|]/g, "_")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 180);
+}
+
+function obtenerMediaEntrante(mensaje) {
+  const tipo = mensaje?.type;
+
+  if (tipo === "image") {
+    const media = mensaje.image || {};
+    return {
+      contenido: media.caption || "Imagen recibida",
+      extra: {
+        mediaId: media.id || "",
+        mimeType: media.mime_type || "image/jpeg",
+        sha256: media.sha256 || "",
+        caption: media.caption || "",
+        nombreArchivo: "imagen-whatsapp.jpg",
+      },
+    };
+  }
+
+  if (tipo === "audio") {
+    const media = mensaje.audio || {};
+    return {
+      contenido: media.voice ? "Nota de voz recibida" : "Audio recibido",
+      extra: {
+        mediaId: media.id || "",
+        mimeType: media.mime_type || "audio/ogg",
+        sha256: media.sha256 || "",
+        voice: Boolean(media.voice),
+        nombreArchivo: media.voice ? "nota-de-voz.ogg" : "audio-whatsapp.ogg",
+      },
+    };
+  }
+
+  if (tipo === "video") {
+    const media = mensaje.video || {};
+    return {
+      contenido: media.caption || "Video recibido",
+      extra: {
+        mediaId: media.id || "",
+        mimeType: media.mime_type || "video/mp4",
+        sha256: media.sha256 || "",
+        caption: media.caption || "",
+        nombreArchivo: "video-whatsapp.mp4",
+      },
+    };
+  }
+
+  if (tipo === "document") {
+    const media = mensaje.document || {};
+    return {
+      contenido: media.caption || media.filename || "Documento recibido",
+      extra: {
+        mediaId: media.id || "",
+        mimeType: media.mime_type || "application/octet-stream",
+        sha256: media.sha256 || "",
+        caption: media.caption || "",
+        nombreArchivo: media.filename || "documento-whatsapp",
+      },
+    };
+  }
+
+  if (tipo === "sticker") {
+    const media = mensaje.sticker || {};
+    return {
+      contenido: "Sticker recibido",
+      extra: {
+        mediaId: media.id || "",
+        mimeType: media.mime_type || "image/webp",
+        sha256: media.sha256 || "",
+        animated: Boolean(media.animated),
+        nombreArchivo: "sticker-whatsapp.webp",
+      },
+    };
+  }
+
+  return {
+    contenido: `Mensaje recibido de tipo: ${tipo}`,
+    extra: {},
+  };
+}
+
 async function guardarMensaje(numero, origen, tipo, contenido, extra = {}) {
   try {
     if (!firebaseDb || !numero) return;
@@ -446,6 +533,77 @@ app.get("/webhook", (req, res) => {
 app.get("/api/conversaciones", validarAdmin, async (req, res) => {
   const conversaciones = await leerConversacionesFirebase();
   res.json(conversaciones);
+});
+
+app.get("/api/media/:mediaId", validarAdmin, async (req, res) => {
+  try {
+    const mediaId = String(req.params.mediaId || "").trim();
+
+    if (!mediaId) {
+      return res.status(400).send("Media ID no válido.");
+    }
+
+    const infoUrl = `https://graph.facebook.com/v25.0/${encodeURIComponent(
+      mediaId
+    )}`;
+
+    const infoResp = await fetch(infoUrl, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${tokenWhatsapp}`,
+      },
+    });
+
+    if (!infoResp.ok) {
+      console.error("Error obteniendo media info:", await infoResp.text());
+      return res.status(404).send("No se pudo obtener la información del archivo.");
+    }
+
+    const info = await infoResp.json();
+
+    if (!info.url) {
+      return res.status(404).send("El archivo no contiene URL de descarga.");
+    }
+
+    const archivoResp = await fetch(info.url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${tokenWhatsapp}`,
+      },
+    });
+
+    if (!archivoResp.ok) {
+      console.error("Error descargando media:", await archivoResp.text());
+      return res.status(404).send("No se pudo descargar el archivo.");
+    }
+
+    const contentType =
+      archivoResp.headers.get("content-type") ||
+      info.mime_type ||
+      "application/octet-stream";
+
+    const nombre =
+      nombreArchivoSeguro(req.query.nombre) ||
+      nombreArchivoSeguro(`archivo-${mediaId}`);
+
+    const descargar = String(req.query.descargar || "") === "1";
+    const disposition = descargar ? "attachment" : "inline";
+
+    const arrayBuffer = await archivoResp.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    res.setHeader("Content-Type", contentType);
+    res.setHeader(
+      "Content-Disposition",
+      `${disposition}; filename="${nombre}"`
+    );
+    res.setHeader("Cache-Control", "private, max-age=300");
+
+    return res.send(buffer);
+  } catch (error) {
+    console.error("Error en /api/media:", error);
+    return res.status(500).send("Error al cargar el archivo.");
+  }
 });
 
 app.post("/api/conversaciones/:clave/leer", validarAdmin, async (req, res) => {
@@ -917,6 +1075,72 @@ app.get("/panel", validarAdmin, (req, res) => {
       color: #374151;
     }
 
+    .media-box {
+      margin-top: 8px;
+      max-width: 100%;
+    }
+
+    .media-img {
+      display: block;
+      max-width: 260px;
+      max-height: 260px;
+      border-radius: 8px;
+      border: 1px solid rgba(0,0,0,0.12);
+      object-fit: contain;
+      background: #f9fafb;
+    }
+
+    .media-video {
+      display: block;
+      width: 280px;
+      max-width: 100%;
+      max-height: 280px;
+      border-radius: 8px;
+      background: #000;
+    }
+
+    .media-audio {
+      width: 280px;
+      max-width: 100%;
+      margin-top: 4px;
+    }
+
+    .media-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      color: #075e54;
+      background: #ecfdf5;
+      border: 1px solid #bbf7d0;
+      padding: 9px 10px;
+      border-radius: 8px;
+      font-size: 14px;
+      max-width: 100%;
+      word-break: break-word;
+    }
+
+    .media-link:hover {
+      background: #d1fae5;
+    }
+
+    .media-actions {
+      margin-top: 6px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .media-actions a {
+      font-size: 12px;
+      color: #2563eb;
+      text-decoration: none;
+    }
+
+    .media-actions a:hover {
+      text-decoration: underline;
+    }
+
     .respuesta {
       flex-shrink: 0;
       background: white;
@@ -1083,6 +1307,16 @@ app.get("/panel", validarAdmin, (req, res) => {
         padding: 9px 10px;
       }
 
+      .media-img {
+        max-width: 220px;
+        max-height: 220px;
+      }
+
+      .media-video,
+      .media-audio {
+        width: 230px;
+      }
+
       .badge { font-size: 10px; }
       .meta { font-size: 10px; }
 
@@ -1179,7 +1413,7 @@ app.get("/panel", validarAdmin, (req, res) => {
           <input
             id="archivoManual"
             type="file"
-            accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+            accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.mp3,.ogg,.wav,.mp4"
             disabled
           />
           <div id="nombreArchivo">Sin archivo</div>
@@ -1251,6 +1485,128 @@ app.get("/panel", validarAdmin, (req, res) => {
     function conversacionActual() {
       if (!seleccionado) return null;
       return conversaciones.find(c => c.numero === seleccionado) || null;
+    }
+
+    function nombreMedia(msg) {
+      return msg?.extra?.nombreArchivo || "archivo";
+    }
+
+    function urlMedia(msg, descargar = false) {
+      const mediaId = msg?.extra?.mediaId || "";
+      const nombre = nombreMedia(msg);
+
+      if (!mediaId) return "";
+
+      return "/api/media/" +
+        encodeURIComponent(mediaId) +
+        "?nombre=" +
+        encodeURIComponent(nombre) +
+        (descargar ? "&descargar=1" : "");
+    }
+
+    function agregarAccionesMedia(contenedor, msg) {
+      const mediaId = msg?.extra?.mediaId || "";
+      if (!mediaId) return;
+
+      const acciones = document.createElement("div");
+      acciones.className = "media-actions";
+
+      const abrir = document.createElement("a");
+      abrir.href = urlMedia(msg, false);
+      abrir.target = "_blank";
+      abrir.rel = "noopener noreferrer";
+      abrir.textContent = "Abrir";
+
+      const descargar = document.createElement("a");
+      descargar.href = urlMedia(msg, true);
+      descargar.target = "_blank";
+      descargar.rel = "noopener noreferrer";
+      descargar.textContent = "Descargar";
+
+      acciones.appendChild(abrir);
+      acciones.appendChild(descargar);
+      contenedor.appendChild(acciones);
+    }
+
+    function agregarMedia(contenedor, msg) {
+      const tipo = msg?.tipo || "";
+      const extra = msg?.extra || {};
+      const mediaBox = document.createElement("div");
+      mediaBox.className = "media-box";
+
+      if (extra.imageUrl) {
+        const img = document.createElement("img");
+        img.className = "media-img";
+        img.src = extra.imageUrl;
+        img.alt = "Imagen enviada por el bot";
+        img.loading = "lazy";
+        mediaBox.appendChild(img);
+        contenedor.appendChild(mediaBox);
+        return;
+      }
+
+      if (!extra.mediaId) {
+        return;
+      }
+
+      if (tipo === "image" || tipo === "sticker") {
+        const img = document.createElement("img");
+        img.className = "media-img";
+        img.src = urlMedia(msg, false);
+        img.alt = tipo === "sticker" ? "Sticker recibido" : "Imagen recibida";
+        img.loading = "lazy";
+        mediaBox.appendChild(img);
+        agregarAccionesMedia(mediaBox, msg);
+        contenedor.appendChild(mediaBox);
+        return;
+      }
+
+      if (tipo === "audio") {
+        const audio = document.createElement("audio");
+        audio.className = "media-audio";
+        audio.controls = true;
+        audio.preload = "metadata";
+        audio.src = urlMedia(msg, false);
+        mediaBox.appendChild(audio);
+        agregarAccionesMedia(mediaBox, msg);
+        contenedor.appendChild(mediaBox);
+        return;
+      }
+
+      if (tipo === "video") {
+        const video = document.createElement("video");
+        video.className = "media-video";
+        video.controls = true;
+        video.preload = "metadata";
+        video.src = urlMedia(msg, false);
+        mediaBox.appendChild(video);
+        agregarAccionesMedia(mediaBox, msg);
+        contenedor.appendChild(mediaBox);
+        return;
+      }
+
+      if (tipo === "document") {
+        const link = document.createElement("a");
+        link.className = "media-link";
+        link.href = urlMedia(msg, false);
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = "📄 Abrir documento: " + nombreMedia(msg);
+        mediaBox.appendChild(link);
+        agregarAccionesMedia(mediaBox, msg);
+        contenedor.appendChild(mediaBox);
+        return;
+      }
+
+      const link = document.createElement("a");
+      link.className = "media-link";
+      link.href = urlMedia(msg, false);
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = "📎 Abrir archivo: " + nombreMedia(msg);
+      mediaBox.appendChild(link);
+      agregarAccionesMedia(mediaBox, msg);
+      contenedor.appendChild(mediaBox);
     }
 
     async function cargarConversaciones() {
@@ -1461,16 +1817,7 @@ app.get("/panel", validarAdmin, (req, res) => {
         badge.textContent = etiqueta;
 
         const contenido = document.createElement("div");
-
-        if (msg.tipo === "image" && msg.extra?.nombreArchivo) {
-          contenido.textContent = limpiarTexto(msg.contenido) + "\\nImagen: " + msg.extra.nombreArchivo;
-        } else if (msg.tipo === "document" && msg.extra?.nombreArchivo) {
-          contenido.textContent = limpiarTexto(msg.contenido) + "\\nDocumento: " + msg.extra.nombreArchivo;
-        } else if (msg.tipo === "image" && msg.extra?.imageUrl) {
-          contenido.textContent = limpiarTexto(msg.contenido) + "\\n" + msg.extra.imageUrl;
-        } else {
-          contenido.textContent = limpiarTexto(msg.contenido);
-        }
+        contenido.textContent = limpiarTexto(msg.contenido);
 
         const meta = document.createElement("div");
         meta.className = "meta";
@@ -1478,6 +1825,7 @@ app.get("/panel", validarAdmin, (req, res) => {
 
         burbuja.appendChild(badge);
         burbuja.appendChild(contenido);
+        agregarMedia(burbuja, msg);
         burbuja.appendChild(meta);
 
         mensajesDiv.appendChild(burbuja);
@@ -1716,28 +2064,57 @@ async function procesarMensajeEntrante(mensaje) {
       mensaje.interactive?.button_reply?.id ||
       mensaje.interactive?.list_reply?.id ||
       "";
-  } else if (tipo === "audio") {
-    await guardarMensaje(numeroCliente, "usuario", "audio", "Audio recibido");
+  } else if (
+    tipo === "image" ||
+    tipo === "audio" ||
+    tipo === "video" ||
+    tipo === "document" ||
+    tipo === "sticker"
+  ) {
+    const media = obtenerMediaEntrante(mensaje);
+
+    await guardarMensaje(
+      numeroCliente,
+      "usuario",
+      tipo,
+      media.contenido,
+      media.extra
+    );
 
     if (await estaEnModoHumano(numeroCliente)) {
       return;
     }
 
+    if (tipo === "audio") {
+      await enviarTexto(
+        numeroCliente,
+        "🎧 *No se cuenta con la capacidad de responder audios.*\n\n" +
+          "Por favor, escribe tu consulta en texto o selecciona una opción del menú."
+      );
+
+      await esperar(800);
+      await enviarMenuPrincipal(numeroCliente);
+      return;
+    }
+
     await enviarTexto(
       numeroCliente,
-      "🎧 *No se cuenta con la capacidad de responder audios.*\n\n" +
-        "Por favor, escribe tu consulta en texto o selecciona una opción del menú."
+      "📎 *Archivo recibido.*\n\n" +
+        "Para poder ayudarte mejor, escribe tu consulta en texto o selecciona una opción del menú."
     );
 
     await esperar(800);
     await enviarMenuPrincipal(numeroCliente);
     return;
   } else {
+    const media = obtenerMediaEntrante(mensaje);
+
     await guardarMensaje(
       numeroCliente,
       "usuario",
       tipo,
-      `Mensaje recibido de tipo: ${tipo}`
+      media.contenido,
+      media.extra
     );
 
     if (await estaEnModoHumano(numeroCliente)) {
@@ -3248,24 +3625,46 @@ async function enviarArchivoWhatsApp(numeroDestino, archivo, caption = "") {
     }
 
     const esImagen = archivo.mimetype.startsWith("image/");
-    const tipo = esImagen ? "image" : "document";
+    const esVideo = archivo.mimetype.startsWith("video/");
+    const esAudio = archivo.mimetype.startsWith("audio/");
+
+    let tipo = "document";
+
+    if (esImagen) tipo = "image";
+    if (esVideo) tipo = "video";
+    if (esAudio) tipo = "audio";
 
     const url = `https://graph.facebook.com/v25.0/${idNumeroTelefono}/messages`;
+
+    let contenidoMedia = {};
+
+    if (tipo === "image") {
+      contenidoMedia = {
+        id: mediaId,
+        caption,
+      };
+    } else if (tipo === "video") {
+      contenidoMedia = {
+        id: mediaId,
+        caption,
+      };
+    } else if (tipo === "audio") {
+      contenidoMedia = {
+        id: mediaId,
+      };
+    } else {
+      contenidoMedia = {
+        id: mediaId,
+        caption,
+        filename: archivo.originalname,
+      };
+    }
 
     const payload = {
       messaging_product: "whatsapp",
       to: numeroDestino,
       type: tipo,
-      [tipo]: esImagen
-        ? {
-            id: mediaId,
-            caption,
-          }
-        : {
-            id: mediaId,
-            caption,
-            filename: archivo.originalname,
-          },
+      [tipo]: contenidoMedia,
     };
 
     const respuesta = await fetch(url, {
