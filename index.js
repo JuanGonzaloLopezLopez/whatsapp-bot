@@ -105,6 +105,13 @@ const EXTENSIONES = {
   subdireccionAcademica: "134",
 };
 
+const IA_TIEMPO_MAXIMO_MS = 9000;
+const IA_MAX_SOLICITUDES_POR_MINUTO = 6;
+const IA_PAUSA_POR_SATURACION_MS = 75 * 1000;
+
+let iaBloqueadaHasta = 0;
+let iaSolicitudesRecientes = [];
+
 const CONTEXTO_INSTITUCIONAL = `
 INSTITUCIÓN:
 Instituto Tecnológico Superior de Misantla.
@@ -161,18 +168,6 @@ POSGRADOS:
 - Maestría en Ciencias de la Ingeniería
 - Doctorado en Ciencias de la Ingeniería
 
-INFORMACIÓN GENERAL DE CARRERAS:
-Ingeniería Industrial: procesos, calidad, productividad, logística, seguridad industrial y mejora continua.
-Ingeniería en Sistemas Computacionales: programación, desarrollo de software, bases de datos, redes, inteligencia artificial y sistemas informáticos.
-Ingeniería Electromecánica: electricidad, mecánica, mantenimiento, automatización, máquinas eléctricas y sistemas industriales.
-Ingeniería Bioquímica: procesos biotecnológicos, alimentos, laboratorio, control de calidad y transformación de materias primas.
-Ingeniería Civil: construcción, estructuras, obras, caminos, hidráulica, materiales y supervisión de proyectos.
-Ingeniería en Tecnologías de la Información y Comunicaciones: redes, telecomunicaciones, infraestructura tecnológica, ciberseguridad, servicios digitales y desarrollo tecnológico.
-Ingeniería Ambiental: gestión ambiental, tratamiento de agua, residuos, impacto ambiental, conservación y sustentabilidad.
-Ingeniería en Gestión Empresarial: administración, emprendimiento, finanzas, proyectos y gestión de organizaciones.
-Ingeniería Petrolera: exploración, extracción, producción, yacimientos, perforación y seguridad en procesos petroleros.
-Licenciatura en Gastronomía: cocina, alimentos, bebidas, higiene, administración gastronómica, innovación culinaria y servicios gastronómicos.
-
 ADMISIÓN:
 El proceso de admisión es gratuito.
 La ficha, inscripción y reinscripción son gratuitas.
@@ -182,9 +177,6 @@ Publicación de resultados: 8 de julio de 2026.
 REQUISITOS PARA EXAMEN / ADMISIÓN:
 - CURP
 - Certificado o Constancia de Bachillerato con calificaciones
-
-PARA PAGOS:
-Comunicarse con Control Escolar a la extensión 129 o 149.
 
 CURSOS DE VERANO:
 Para información sobre cursos de verano, clases de verano, materias de verano o cursos intersemestrales, se recomienda solicitar información directamente en Control Escolar o con los Jefes de Carrera correspondientes.
@@ -224,6 +216,87 @@ function nombreArchivoSeguro(nombre) {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 180);
+}
+
+function limpiarSolicitudesIA() {
+  const ahora = Date.now();
+  iaSolicitudesRecientes = iaSolicitudesRecientes.filter(
+    (marca) => ahora - marca < 60 * 1000
+  );
+}
+
+function iaDisponible() {
+  limpiarSolicitudesIA();
+
+  if (Date.now() < iaBloqueadaHasta) {
+    return false;
+  }
+
+  return iaSolicitudesRecientes.length < IA_MAX_SOLICITUDES_POR_MINUTO;
+}
+
+function registrarSolicitudIA() {
+  limpiarSolicitudesIA();
+  iaSolicitudesRecientes.push(Date.now());
+}
+
+function bloquearIAtemporalmente() {
+  iaBloqueadaHasta = Date.now() + IA_PAUSA_POR_SATURACION_MS;
+}
+
+function errorPorLimiteIA(error) {
+  const texto = String(
+    error?.message ||
+      error?.status ||
+      error?.code ||
+      JSON.stringify(error || {})
+  ).toLowerCase();
+
+  return (
+    texto.includes("429") ||
+    texto.includes("resource_exhausted") ||
+    texto.includes("quota") ||
+    texto.includes("rate") ||
+    texto.includes("limit") ||
+    texto.includes("too many") ||
+    texto.includes("tokens") ||
+    texto.includes("rpm") ||
+    texto.includes("tpm") ||
+    texto.includes("timeout") ||
+    texto.includes("deadline")
+  );
+}
+
+function conTiempoLimite(promesa, ms) {
+  return Promise.race([
+    promesa,
+    new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error("IA_TIMEOUT"));
+      }, ms);
+    }),
+  ]);
+}
+
+function recortarRespuesta(texto, limite = 1100) {
+  const limpio = String(texto || "").trim();
+
+  if (limpio.length <= limite) {
+    return limpio;
+  }
+
+  const recorte = limpio.slice(0, limite);
+  const ultimoPunto = Math.max(
+    recorte.lastIndexOf("."),
+    recorte.lastIndexOf("\n"),
+    recorte.lastIndexOf("!")
+  );
+
+  if (ultimoPunto > 250) {
+    return recorte.slice(0, ultimoPunto + 1).trim();
+  }
+
+  return recorte.trim() + "...";
 }
 
 function obtenerMediaEntrante(mensaje) {
@@ -556,7 +629,9 @@ app.get("/api/media/:mediaId", validarAdmin, async (req, res) => {
 
     if (!infoResp.ok) {
       console.error("Error obteniendo media info:", await infoResp.text());
-      return res.status(404).send("No se pudo obtener la información del archivo.");
+      return res
+        .status(404)
+        .send("No se pudo obtener la información del archivo.");
     }
 
     const info = await infoResp.json();
@@ -1088,6 +1163,7 @@ app.get("/panel", validarAdmin, (req, res) => {
       border: 1px solid rgba(0,0,0,0.12);
       object-fit: contain;
       background: #f9fafb;
+      cursor: zoom-in;
     }
 
     .media-video {
@@ -1120,9 +1196,7 @@ app.get("/panel", validarAdmin, (req, res) => {
       word-break: break-word;
     }
 
-    .media-link:hover {
-      background: #d1fae5;
-    }
+    .media-link:hover { background: #d1fae5; }
 
     .media-actions {
       margin-top: 6px;
@@ -1137,8 +1211,49 @@ app.get("/panel", validarAdmin, (req, res) => {
       text-decoration: none;
     }
 
-    .media-actions a:hover {
-      text-decoration: underline;
+    .media-actions a:hover { text-decoration: underline; }
+
+    .visor-imagen {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.86);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      padding: 20px;
+    }
+
+    .visor-imagen.abierto {
+      display: flex;
+    }
+
+    .visor-imagen img {
+      max-width: 96vw;
+      max-height: 90vh;
+      border-radius: 10px;
+      object-fit: contain;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.45);
+      background: #111827;
+    }
+
+    .visor-cerrar {
+      position: absolute;
+      top: 16px;
+      right: 18px;
+      width: 42px;
+      height: 42px;
+      border: none;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.18);
+      color: white;
+      font-size: 28px;
+      cursor: pointer;
+      line-height: 1;
+    }
+
+    .visor-cerrar:hover {
+      background: rgba(255,255,255,0.3);
     }
 
     .respuesta {
@@ -1424,6 +1539,11 @@ app.get("/panel", validarAdmin, (req, res) => {
     </section>
   </div>
 
+  <div id="visorImagen" class="visor-imagen" onclick="cerrarVisorImagen(event)">
+    <button class="visor-cerrar" onclick="cerrarVisorImagen(event)">×</button>
+    <img id="visorImagenImg" src="" alt="Imagen ampliada" />
+  </div>
+
   <script>
     let conversaciones = [];
     let seleccionado = null;
@@ -1442,8 +1562,33 @@ app.get("/panel", validarAdmin, (req, res) => {
     const archivoManual = document.getElementById("archivoManual");
     const nombreArchivo = document.getElementById("nombreArchivo");
     const archivoLabel = document.getElementById("archivoLabel");
-
     const buscarInput = document.getElementById("buscar");
+
+    const visorImagen = document.getElementById("visorImagen");
+    const visorImagenImg = document.getElementById("visorImagenImg");
+
+    function abrirVisorImagen(src) {
+      if (!src) return;
+      visorImagenImg.src = src;
+      visorImagen.classList.add("abierto");
+    }
+
+    function cerrarVisorImagen(event) {
+      if (
+        event.target === visorImagen ||
+        event.target.classList.contains("visor-cerrar")
+      ) {
+        visorImagen.classList.remove("abierto");
+        visorImagenImg.src = "";
+      }
+    }
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        visorImagen.classList.remove("abierto");
+        visorImagenImg.src = "";
+      }
+    });
 
     function esMovilVertical() {
       return window.matchMedia("(max-width: 850px) and (orientation: portrait)").matches;
@@ -1511,19 +1656,12 @@ app.get("/panel", validarAdmin, (req, res) => {
       const acciones = document.createElement("div");
       acciones.className = "media-actions";
 
-      const abrir = document.createElement("a");
-      abrir.href = urlMedia(msg, false);
-      abrir.target = "_blank";
-      abrir.rel = "noopener noreferrer";
-      abrir.textContent = "Abrir";
-
       const descargar = document.createElement("a");
       descargar.href = urlMedia(msg, true);
       descargar.target = "_blank";
       descargar.rel = "noopener noreferrer";
       descargar.textContent = "Descargar";
 
-      acciones.appendChild(abrir);
       acciones.appendChild(descargar);
       contenedor.appendChild(acciones);
     }
@@ -1540,6 +1678,7 @@ app.get("/panel", validarAdmin, (req, res) => {
         img.src = extra.imageUrl;
         img.alt = "Imagen enviada por el bot";
         img.loading = "lazy";
+        img.addEventListener("click", () => abrirVisorImagen(img.src));
         mediaBox.appendChild(img);
         contenedor.appendChild(mediaBox);
         return;
@@ -1555,6 +1694,7 @@ app.get("/panel", validarAdmin, (req, res) => {
         img.src = urlMedia(msg, false);
         img.alt = tipo === "sticker" ? "Sticker recibido" : "Imagen recibida";
         img.loading = "lazy";
+        img.addEventListener("click", () => abrirVisorImagen(img.src));
         mediaBox.appendChild(img);
         agregarAccionesMedia(mediaBox, msg);
         contenedor.appendChild(mediaBox);
@@ -2185,6 +2325,25 @@ async function procesarMensajeEntrante(mensaje) {
   const sesionRefrescada = obtenerSesion(numeroCliente);
 
   if (sesionRefrescada.modoEspecifico) {
+    const respuestaFijaEnModoEspecifico =
+      construirRespuestaFija(textoNormalizado);
+
+    if (respuestaFijaEnModoEspecifico) {
+      if (respuestaFijaEnModoEspecifico.tipo === "texto") {
+        await enviarTexto(numeroCliente, respuestaFijaEnModoEspecifico.mensaje);
+      } else if (respuestaFijaEnModoEspecifico.tipo === "texto_e_imagen") {
+        await enviarTexto(numeroCliente, respuestaFijaEnModoEspecifico.mensaje);
+        await esperar(800);
+        await enviarImagen(
+          numeroCliente,
+          respuestaFijaEnModoEspecifico.imageUrl,
+          respuestaFijaEnModoEspecifico.caption || ""
+        );
+      }
+
+      return;
+    }
+
     if (esConsultaDemasiadoAmbigua(textoNormalizado)) {
       await marcarAtencionPendiente(numeroCliente, true);
       await enviarTexto(numeroCliente, mensajeAsistenciaReal());
@@ -2846,6 +3005,95 @@ function mensajeCarrera(claveCarrera) {
   );
 }
 
+function respuestaCortaLocal(textoUsuario) {
+  const texto = textoPlano(textoUsuario);
+
+  const fija = construirRespuestaFija(texto);
+
+  if (fija?.mensaje) {
+    return recortarRespuesta(fija.mensaje, 850);
+  }
+
+  if (
+    contieneAlgunaFrase(texto, [
+      "sabado",
+      "sabados",
+      "sábados",
+      "fin de semana",
+      "fines de semana",
+    ])
+  ) {
+    const carrera = detectarCarrera(texto);
+
+    if (carrera) {
+      const nombre = {
+        industrial: "Ingeniería Industrial",
+        sistemas: "Ingeniería en Sistemas Computacionales",
+        electromecanica: "Ingeniería Electromecánica",
+        bioquimica: "Ingeniería Bioquímica",
+        civil: "Ingeniería Civil",
+        tic: "Ingeniería en Tecnologías de la Información y Comunicaciones",
+        ambiental: "Ingeniería Ambiental",
+        gestion: "Ingeniería en Gestión Empresarial",
+        petrolera: "Ingeniería Petrolera",
+        gastronomia: "Licenciatura en Gastronomía",
+      }[carrera];
+
+      return (
+        `⚡ *Respuesta rápida*\n\n` +
+        `Para confirmar si *${nombre}* tiene atención, clases o disponibilidad los sábados, comunícate con *Jefes de Carrera*.\n\n` +
+        `☎️ ${TELEFONO_BASE} ext. ${EXTENSIONES.jefesCarrera}\n\n` +
+        `Horario general de atención sabatino: *9:00 a 14:00 horas*.`
+      );
+    }
+
+    return (
+      "⚡ *Respuesta rápida*\n\n" +
+      "Los sábados el horario general de atención es de *9:00 a 14:00 horas*."
+    );
+  }
+
+  if (
+    contieneAlgunaFrase(texto, [
+      "horario",
+      "horarios",
+      "a que hora",
+      "atienden",
+      "abren",
+      "cierran",
+    ])
+  ) {
+    return mensajeHorarios();
+  }
+
+  if (
+    contieneAlgunaFrase(texto, [
+      "telefono",
+      "teléfono",
+      "numero",
+      "número",
+      "ext",
+      "extension",
+      "extensión",
+    ])
+  ) {
+    return (
+      "⚡ *Respuesta rápida*\n\n" +
+      `Teléfono principal: ${TELEFONO_BASE}\n\n` +
+      `Control Escolar: ext. ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}\n` +
+      `Jefes de Carrera: ext. ${EXTENSIONES.jefesCarrera}\n` +
+      `Dirección General: ext. ${EXTENSIONES.direccion}`
+    );
+  }
+
+  return (
+    "⚡ *Respuesta rápida*\n\n" +
+    "En este momento estoy respondiendo en modo breve por alta demanda. " +
+    "Puedes escribir una pregunta más específica o solicitar atención con un representante real.\n\n" +
+    `Para una respuesta rápida también puedes llamar al: *${TELEFONO_BOT_LLAMADAS}*.`
+  );
+}
+
 async function enviarMenuPrincipal(numeroDestino) {
   await enviarLista(numeroDestino);
 }
@@ -3487,58 +3735,66 @@ function construirRespuestaFija(texto) {
 
 async function generarRespuestaIA(textoUsuario) {
   if (!ai) {
-    return "No pude responder esa consulta en este momento.";
+    return respuestaCortaLocal(textoUsuario);
   }
+
+  if (!iaDisponible()) {
+    return respuestaCortaLocal(textoUsuario);
+  }
+
+  registrarSolicitudIA();
 
   const prompt = `
 Responde SOLO en español.
+Sé breve. Máximo 5 líneas.
 Nunca respondas en inglés.
 Nunca menciones que eres una IA.
 Nunca menciones nombres de modelos.
 Nunca menciones documentos, archivos, enlaces internos, fuentes recuperadas ni herramientas.
 Responde como asistente virtual institucional del Instituto Tecnológico Superior de Misantla.
-Da respuestas directas, claras, útiles y breves.
-Tolera abreviaturas como "info", "ing", "ing.", "sist", "tec", y faltas de ortografía comunes como "ingeneria" o falta de acentos.
+Tolera abreviaturas como "info", "ing", "ing.", "sist", "tec", y faltas de ortografía comunes.
 
-Si preguntan por horarios, responde:
+Si preguntan por horarios:
 Lunes a viernes: 9:00 a 14:00 y de 15:00 a 17:00 horas.
 Sábados: 9:00 a 14:00 horas.
 
-Si preguntan por cursos de verano, clases de verano, materias de verano, cursos intersemestrales o adelantar materias en verano, responde que pueden solicitar más información en Control Escolar al teléfono ${TELEFONO_BASE}, extensiones ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}, o hablando con sus Jefes de Carrera correspondientes al teléfono ${TELEFONO_BASE}, extensión ${EXTENSIONES.jefesCarrera}.
+Si preguntan si una carrera está disponible sábados, aclara que el horario general sabatino es 9:00 a 14:00, pero que para confirmar clases o disponibilidad por carrera deben comunicarse con Jefes de Carrera: ${TELEFONO_BASE} ext. ${EXTENSIONES.jefesCarrera}.
 
-Si preguntan por una carrera específica, responde con una descripción general, áreas que se trabajan y el contacto de Jefes de Carrera: ${TELEFONO_BASE} ext. ${EXTENSIONES.jefesCarrera}.
-Si te preguntan por dirección institucional, ubicación o cómo llegar, incluye también el enlace de Google Maps.
-Si te preguntan por número, teléfono, extensión o contacto de Dirección General, responde con el teléfono ${TELEFONO_BASE}, extensión ${EXTENSIONES.direccion}, y el correo dir_itsmisantla@itsm.edu.mx.
-No confundas "número de dirección" o "teléfono de dirección" con ubicación física.
-Si te preguntan por algún departamento o por servicios escolares, incluye el teléfono completo y la extensión correspondiente.
-Si preguntan por pagos, responde que deben comunicarse con Control Escolar al teléfono ${TELEFONO_BASE}, extensiones ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}.
-Si preguntan por Educación Virtual TECNM, incluye el teléfono ${TELEFONO_VIRTUAL} ext. ${EXTENSIONES.subdireccionAcademica}, el enlace virtual.tecnm.mx y las carreras disponibles.
+Si preguntan por cursos de verano, clases de verano, materias de verano, cursos intersemestrales o adelantar materias en verano, responde que pueden solicitar más información en Control Escolar al teléfono ${TELEFONO_BASE}, extensiones ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}, o con Jefes de Carrera al teléfono ${TELEFONO_BASE}, extensión ${EXTENSIONES.jefesCarrera}.
+
+Si preguntan por una carrera específica, responde con descripción breve, áreas y contacto de Jefes de Carrera: ${TELEFONO_BASE} ext. ${EXTENSIONES.jefesCarrera}.
+Si preguntan por ubicación, incluye Google Maps.
+Si preguntan por Dirección General, responde teléfono ${TELEFONO_BASE}, extensión ${EXTENSIONES.direccion}, y correo dir_itsmisantla@itsm.edu.mx.
+No confundas "número de dirección" con ubicación física.
+Si preguntan por pagos, responde que se comuniquen con Control Escolar al teléfono ${TELEFONO_BASE}, extensiones ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}.
+Si preguntan por Educación Virtual TECNM, incluye ${TELEFONO_VIRTUAL} ext. ${EXTENSIONES.subdireccionAcademica}, virtual.tecnm.mx y sus carreras.
 Si preguntan por RegresaTec, incluye Subdirección Académica ${TELEFONO_VIRTUAL} ext. ${EXTENSIONES.subdireccionAcademica} y Estudios Profesionales ${TELEFONO_BASE} ext. ${EXTENSIONES.divisionEstudios}.
-Si el usuario muestra molestia, frustración o solicita hablar con una persona, responde que su solicitud fue registrada, que en unos minutos será atendido por un representante real y que, si necesita una respuesta más rápida, puede realizar una llamada normal al ${TELEFONO_BOT_LLAMADAS}. No digas que escriba por WhatsApp a ese número.
 No inventes datos.
-No envíes al usuario al menú salvo que realmente no tengas respuesta.
 
-DATOS INSTITUCIONALES CONFIRMADOS:
+DATOS CONFIRMADOS:
 ${CONTEXTO_INSTITUCIONAL}
 
-CONSULTA DEL USUARIO:
+CONSULTA:
 ${textoUsuario}
 `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [prompt],
-      config: {
-        temperature: 0.15,
-        maxOutputTokens: 450,
-      },
-    });
+    const response = await conTiempoLimite(
+      ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [prompt],
+        config: {
+          temperature: 0.1,
+          maxOutputTokens: 220,
+        },
+      }),
+      IA_TIEMPO_MAXIMO_MS
+    );
 
     let texto = response.text?.trim();
 
     if (!texto) {
-      return "No cuento con ese dato confirmado en este momento.";
+      return respuestaCortaLocal(textoUsuario);
     }
 
     texto = texto
@@ -3569,17 +3825,21 @@ ${textoUsuario}
     );
 
     if (pareceIngles) {
-      return "No cuento con ese dato confirmado en este momento.";
+      return respuestaCortaLocal(textoUsuario);
     }
 
-    return texto;
+    return recortarRespuesta(texto, 1100);
   } catch (error) {
-    console.error("===== ERROR MODO ESPECÍFICO =====");
+    console.error("===== ERROR MODO ESPECÍFICO / IA =====");
     console.error("Mensaje:", error?.message);
     console.error("Objeto completo:", error);
-    console.error("=================================");
+    console.error("=====================================");
 
-    return "No pude responder esa consulta en este momento.";
+    if (errorPorLimiteIA(error)) {
+      bloquearIAtemporalmente();
+    }
+
+    return respuestaCortaLocal(textoUsuario);
   }
 }
 
