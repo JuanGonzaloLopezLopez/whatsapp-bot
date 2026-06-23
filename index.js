@@ -218,8 +218,21 @@ function nombreArchivoSeguro(nombre) {
     .slice(0, 180);
 }
 
+function extraerGoogleDriveId(url) {
+  const texto = String(url || "");
+
+  const porRuta = texto.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (porRuta?.[1]) return porRuta[1];
+
+  const porId = texto.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (porId?.[1]) return porId[1];
+
+  return "";
+}
+
 function limpiarSolicitudesIA() {
   const ahora = Date.now();
+
   iaSolicitudesRecientes = iaSolicitudesRecientes.filter(
     (marca) => ahora - marca < 60 * 1000
   );
@@ -608,6 +621,122 @@ app.get("/api/conversaciones", validarAdmin, async (req, res) => {
   res.json(conversaciones);
 });
 
+app.get("/api/imagen-drive/:fileId", validarAdmin, async (req, res) => {
+  try {
+    const fileId = String(req.params.fileId || "").trim();
+
+    if (!fileId) {
+      return res.status(400).send("ID de imagen no válido.");
+    }
+
+    const descargar = String(req.query.descargar || "") === "1";
+    const nombre = nombreArchivoSeguro(req.query.nombre || "imagen-drive.jpg");
+
+    const urls = [
+      `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileId)}&sz=w1600`,
+      `https://drive.google.com/uc?export=view&id=${encodeURIComponent(fileId)}`,
+      `https://lh3.googleusercontent.com/d/${encodeURIComponent(fileId)}=w1600`,
+    ];
+
+    let respuestaFinal = null;
+
+    for (const url of urls) {
+      try {
+        const respuesta = await fetch(url, {
+          method: "GET",
+          redirect: "follow",
+          headers: {
+            "User-Agent": "Mozilla/5.0",
+          },
+        });
+
+        const contentType = respuesta.headers.get("content-type") || "";
+
+        if (respuesta.ok && contentType.startsWith("image/")) {
+          respuestaFinal = respuesta;
+          break;
+        }
+      } catch (error) {
+        console.error("Error probando URL de imagen Drive:", error);
+      }
+    }
+
+    if (!respuestaFinal) {
+      return res
+        .status(404)
+        .send("No se pudo cargar la imagen desde Google Drive.");
+    }
+
+    const contentType =
+      respuestaFinal.headers.get("content-type") || "image/jpeg";
+
+    const buffer = Buffer.from(await respuestaFinal.arrayBuffer());
+
+    res.setHeader("Content-Type", contentType);
+    res.setHeader(
+      "Content-Disposition",
+      `${descargar ? "attachment" : "inline"}; filename="${nombre}"`
+    );
+    res.setHeader("Cache-Control", "private, max-age=600");
+
+    return res.send(buffer);
+  } catch (error) {
+    console.error("Error en /api/imagen-drive:", error);
+    return res.status(500).send("Error cargando imagen.");
+  }
+});
+
+app.get("/api/imagen-externa", validarAdmin, async (req, res) => {
+  try {
+    const urlOriginal = String(req.query.url || "").trim();
+
+    if (!urlOriginal || !/^https?:\/\//i.test(urlOriginal)) {
+      return res.status(400).send("URL de imagen no válida.");
+    }
+
+    const idDrive = extraerGoogleDriveId(urlOriginal);
+
+    if (idDrive) {
+      const urlRedirigida =
+        `/api/imagen-drive/${encodeURIComponent(idDrive)}?nombre=imagen-drive.jpg`;
+
+      return res.redirect(urlRedirigida);
+    }
+
+    const descargar = String(req.query.descargar || "") === "1";
+    const nombre = nombreArchivoSeguro(req.query.nombre || "imagen.jpg");
+
+    const respuesta = await fetch(urlOriginal, {
+      method: "GET",
+      redirect: "follow",
+      headers: {
+        "User-Agent": "Mozilla/5.0",
+      },
+    });
+
+    if (!respuesta.ok) {
+      return res.status(404).send("No se pudo cargar la imagen externa.");
+    }
+
+    const contentType =
+      respuesta.headers.get("content-type") || "application/octet-stream";
+
+    const buffer = Buffer.from(await respuesta.arrayBuffer());
+
+    res.setHeader("Content-Type", contentType);
+    res.setHeader(
+      "Content-Disposition",
+      `${descargar ? "attachment" : "inline"}; filename="${nombre}"`
+    );
+    res.setHeader("Cache-Control", "private, max-age=600");
+
+    return res.send(buffer);
+  } catch (error) {
+    console.error("Error en /api/imagen-externa:", error);
+    return res.status(500).send("Error cargando imagen externa.");
+  }
+});
+
 app.get("/api/media/:mediaId", validarAdmin, async (req, res) => {
   try {
     const mediaId = String(req.params.mediaId || "").trim();
@@ -729,21 +858,25 @@ app.post("/api/conversaciones/:clave/tomar", validarAdmin, async (req, res) => {
   });
 });
 
-app.post("/api/conversaciones/:clave/liberar", validarAdmin, async (req, res) => {
-  const liberado = await liberarChatFirebase(req.params.clave);
+app.post(
+  "/api/conversaciones/:clave/liberar",
+  validarAdmin,
+  async (req, res) => {
+    const liberado = await liberarChatFirebase(req.params.clave);
 
-  if (!liberado) {
-    return res.status(500).json({
-      ok: false,
-      mensaje: "No se pudo liberar el chat.",
+    if (!liberado) {
+      return res.status(500).json({
+        ok: false,
+        mensaje: "No se pudo liberar el chat.",
+      });
+    }
+
+    return res.json({
+      ok: true,
+      mensaje: "Chat liberado correctamente.",
     });
   }
-
-  return res.json({
-    ok: true,
-    mensaje: "Chat liberado correctamente.",
-  });
-});
+);
 
 app.post(
   "/api/conversaciones/:clave/mensaje",
@@ -1157,13 +1290,28 @@ app.get("/panel", validarAdmin, (req, res) => {
 
     .media-img {
       display: block;
-      max-width: 260px;
-      max-height: 260px;
+      max-width: 280px;
+      max-height: 280px;
       border-radius: 8px;
       border: 1px solid rgba(0,0,0,0.12);
       object-fit: contain;
       background: #f9fafb;
       cursor: zoom-in;
+    }
+
+    .media-img-error {
+      width: 260px;
+      min-height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px dashed #9ca3af;
+      border-radius: 8px;
+      background: #f9fafb;
+      color: #6b7280;
+      font-size: 13px;
+      padding: 10px;
+      text-align: center;
     }
 
     .media-video {
@@ -1199,19 +1347,32 @@ app.get("/panel", validarAdmin, (req, res) => {
     .media-link:hover { background: #d1fae5; }
 
     .media-actions {
-      margin-top: 6px;
+      margin-top: 8px;
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
     }
 
-    .media-actions a {
-      font-size: 12px;
-      color: #2563eb;
+    .btn-descargar-media {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       text-decoration: none;
+      background: #f97316;
+      color: white;
+      border: none;
+      padding: 7px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: pointer;
     }
 
-    .media-actions a:hover { text-decoration: underline; }
+    .btn-descargar-media:hover {
+      background: #ea580c;
+      text-decoration: none;
+      color: white;
+    }
 
     .visor-imagen {
       position: fixed;
@@ -1636,6 +1797,36 @@ app.get("/panel", validarAdmin, (req, res) => {
       return msg?.extra?.nombreArchivo || "archivo";
     }
 
+    function extraerDriveIdCliente(url) {
+      const texto = String(url || "");
+
+      const porRuta = texto.match(/\\/file\\/d\\/([a-zA-Z0-9_-]+)/);
+      if (porRuta && porRuta[1]) return porRuta[1];
+
+      const porId = texto.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+      if (porId && porId[1]) return porId[1];
+
+      return "";
+    }
+
+    function urlImagenExternaPanel(url, descargar) {
+      const idDrive = extraerDriveIdCliente(url);
+
+      if (idDrive) {
+        return "/api/imagen-drive/" +
+          encodeURIComponent(idDrive) +
+          "?nombre=" +
+          encodeURIComponent("imagen-drive.jpg") +
+          (descargar ? "&descargar=1" : "");
+      }
+
+      return "/api/imagen-externa?url=" +
+        encodeURIComponent(url) +
+        "&nombre=" +
+        encodeURIComponent("imagen.jpg") +
+        (descargar ? "&descargar=1" : "");
+    }
+
     function urlMedia(msg, descargar = false) {
       const mediaId = msg?.extra?.mediaId || "";
       const nombre = nombreMedia(msg);
@@ -1649,18 +1840,18 @@ app.get("/panel", validarAdmin, (req, res) => {
         (descargar ? "&descargar=1" : "");
     }
 
-    function agregarAccionesMedia(contenedor, msg) {
-      const mediaId = msg?.extra?.mediaId || "";
-      if (!mediaId) return;
+    function agregarBotonDescarga(contenedor, href) {
+      if (!href) return;
 
       const acciones = document.createElement("div");
       acciones.className = "media-actions";
 
       const descargar = document.createElement("a");
-      descargar.href = urlMedia(msg, true);
+      descargar.href = href;
       descargar.target = "_blank";
       descargar.rel = "noopener noreferrer";
       descargar.textContent = "Descargar";
+      descargar.className = "btn-descargar-media";
 
       acciones.appendChild(descargar);
       contenedor.appendChild(acciones);
@@ -1673,13 +1864,25 @@ app.get("/panel", validarAdmin, (req, res) => {
       mediaBox.className = "media-box";
 
       if (extra.imageUrl) {
+        const srcPanel = urlImagenExternaPanel(extra.imageUrl, false);
+        const srcDescarga = urlImagenExternaPanel(extra.imageUrl, true);
+
         const img = document.createElement("img");
         img.className = "media-img";
-        img.src = extra.imageUrl;
+        img.src = srcPanel;
         img.alt = "Imagen enviada por el bot";
         img.loading = "lazy";
         img.addEventListener("click", () => abrirVisorImagen(img.src));
+
+        img.onerror = () => {
+          const errorBox = document.createElement("div");
+          errorBox.className = "media-img-error";
+          errorBox.textContent = "No se pudo cargar la imagen en el panel.";
+          mediaBox.replaceChild(errorBox, img);
+        };
+
         mediaBox.appendChild(img);
+        agregarBotonDescarga(mediaBox, srcDescarga);
         contenedor.appendChild(mediaBox);
         return;
       }
@@ -1695,8 +1898,16 @@ app.get("/panel", validarAdmin, (req, res) => {
         img.alt = tipo === "sticker" ? "Sticker recibido" : "Imagen recibida";
         img.loading = "lazy";
         img.addEventListener("click", () => abrirVisorImagen(img.src));
+
+        img.onerror = () => {
+          const errorBox = document.createElement("div");
+          errorBox.className = "media-img-error";
+          errorBox.textContent = "No se pudo cargar la imagen en el panel.";
+          mediaBox.replaceChild(errorBox, img);
+        };
+
         mediaBox.appendChild(img);
-        agregarAccionesMedia(mediaBox, msg);
+        agregarBotonDescarga(mediaBox, urlMedia(msg, true));
         contenedor.appendChild(mediaBox);
         return;
       }
@@ -1708,7 +1919,7 @@ app.get("/panel", validarAdmin, (req, res) => {
         audio.preload = "metadata";
         audio.src = urlMedia(msg, false);
         mediaBox.appendChild(audio);
-        agregarAccionesMedia(mediaBox, msg);
+        agregarBotonDescarga(mediaBox, urlMedia(msg, true));
         contenedor.appendChild(mediaBox);
         return;
       }
@@ -1720,7 +1931,7 @@ app.get("/panel", validarAdmin, (req, res) => {
         video.preload = "metadata";
         video.src = urlMedia(msg, false);
         mediaBox.appendChild(video);
-        agregarAccionesMedia(mediaBox, msg);
+        agregarBotonDescarga(mediaBox, urlMedia(msg, true));
         contenedor.appendChild(mediaBox);
         return;
       }
@@ -1733,7 +1944,7 @@ app.get("/panel", validarAdmin, (req, res) => {
         link.rel = "noopener noreferrer";
         link.textContent = "📄 Abrir documento: " + nombreMedia(msg);
         mediaBox.appendChild(link);
-        agregarAccionesMedia(mediaBox, msg);
+        agregarBotonDescarga(mediaBox, urlMedia(msg, true));
         contenedor.appendChild(mediaBox);
         return;
       }
@@ -1745,7 +1956,7 @@ app.get("/panel", validarAdmin, (req, res) => {
       link.rel = "noopener noreferrer";
       link.textContent = "📎 Abrir archivo: " + nombreMedia(msg);
       mediaBox.appendChild(link);
-      agregarAccionesMedia(mediaBox, msg);
+      agregarBotonDescarga(mediaBox, urlMedia(msg, true));
       contenedor.appendChild(mediaBox);
     }
 
