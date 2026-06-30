@@ -317,6 +317,7 @@ function obtenerMediaEntrante(mensaje) {
 
   if (tipo === "image") {
     const media = mensaje.image || {};
+
     return {
       contenido: media.caption || "Imagen recibida",
       extra: {
@@ -331,6 +332,7 @@ function obtenerMediaEntrante(mensaje) {
 
   if (tipo === "audio") {
     const media = mensaje.audio || {};
+
     return {
       contenido: media.voice ? "Nota de voz recibida" : "Audio recibido",
       extra: {
@@ -345,6 +347,7 @@ function obtenerMediaEntrante(mensaje) {
 
   if (tipo === "video") {
     const media = mensaje.video || {};
+
     return {
       contenido: media.caption || "Video recibido",
       extra: {
@@ -359,6 +362,7 @@ function obtenerMediaEntrante(mensaje) {
 
   if (tipo === "document") {
     const media = mensaje.document || {};
+
     return {
       contenido: media.caption || media.filename || "Documento recibido",
       extra: {
@@ -373,6 +377,7 @@ function obtenerMediaEntrante(mensaje) {
 
   if (tipo === "sticker") {
     const media = mensaje.sticker || {};
+
     return {
       contenido: "Sticker recibido",
       extra: {
@@ -2491,6 +2496,18 @@ async function procesarMensajeEntrante(mensaje) {
   const textoNormalizado = normalizarTexto(textoRecibido);
   const sesionActual = obtenerSesion(numeroCliente);
 
+  if (esSaludoSimpleExacto(textoNormalizado)) {
+    sesiones.set(numeroCliente, {
+      ...sesionActual,
+      modoEspecifico: false,
+      estado: "menu_principal",
+      actualizadaEn: Date.now(),
+    });
+
+    await enviarMenuPrincipal(numeroCliente);
+    return;
+  }
+
   if (
     textoNormalizado === "especifico" ||
     textoNormalizado === "op_btn_especifico"
@@ -2653,6 +2670,20 @@ function textoPlano(texto) {
     .trim();
 }
 
+function escaparRegex(texto) {
+  return String(texto || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function contienePalabraExacta(texto, palabras) {
+  const base = textoPlano(texto);
+
+  return palabras.some((palabra) => {
+    const limpia = textoPlano(palabra);
+    const regex = new RegExp(`(^|\\s)${escaparRegex(limpia)}(\\s|$)`, "i");
+    return regex.test(base);
+  });
+}
+
 function contieneAlgunaFrase(texto, frases) {
   const base = textoPlano(texto);
 
@@ -2660,6 +2691,105 @@ function contieneAlgunaFrase(texto, frases) {
     const limpia = textoPlano(frase);
     return base.includes(limpia);
   });
+}
+
+function esSaludoSimpleExacto(texto) {
+  const base = textoPlano(texto);
+
+  const saludosExactos = [
+    "hola",
+    "ola",
+    "holaa",
+    "holaaa",
+    "holaaaa",
+    "holi",
+    "holis",
+    "buen dia",
+    "buenos dias",
+    "buenos dias buenos dias",
+    "buenas",
+    "buenas tardes",
+    "buena tarde",
+    "buenas tardas",
+    "buenas tarde",
+    "buenas noches",
+    "buena noche",
+    "buenas nochess",
+    "que tal",
+    "qué tal",
+    "hola buenos dias",
+    "hola buen dia",
+    "hola buenas tardes",
+    "hola buenas tardas",
+    "hola buenas noches",
+    "muy buenos dias",
+    "muy buenas tardes",
+    "muy buenas noches",
+    "disculpe",
+    "disculpa",
+    "oye",
+    "oiga",
+    "menu",
+    "menú",
+    "inicio",
+  ].map(textoPlano);
+
+  if (saludosExactos.includes(base)) {
+    return true;
+  }
+
+  const palabras = base.split(" ").filter(Boolean);
+
+  if (palabras.length <= 4) {
+    const empiezaComoSaludo = [
+      "hola",
+      "ola",
+      "holi",
+      "buen",
+      "buenos",
+      "buenas",
+      "disculpe",
+      "disculpa",
+    ];
+
+    if (empiezaComoSaludo.includes(palabras[0])) {
+      const palabrasConsulta = [
+        "info",
+        "informacion",
+        "información",
+        "ingenieria",
+        "ingeneria",
+        "ing",
+        "carrera",
+        "carreras",
+        "ficha",
+        "fichas",
+        "telefono",
+        "teléfono",
+        "numero",
+        "número",
+        "horario",
+        "horarios",
+        "ubicacion",
+        "ubicación",
+        "direccion",
+        "dirección",
+        "sistemas",
+        "industrial",
+        "civil",
+        "gastronomia",
+        "ambiental",
+        "petrolera",
+        "bioquimica",
+        "electromecanica",
+        "gestion",
+      ];
+
+      return !contieneAlgunaFrase(base, palabrasConsulta);
+    }
+  }
+
+  return false;
 }
 
 function solicitaTelefonoOExtension(texto) {
@@ -2809,6 +2939,10 @@ function mensajeAsistenciaReal() {
 }
 
 function esSaludoOInicio(texto) {
+  if (esSaludoSimpleExacto(texto)) {
+    return true;
+  }
+
   const base = textoPlano(texto);
 
   const saludosExactos = [
@@ -2820,10 +2954,12 @@ function esSaludoOInicio(texto) {
     "buenos dias",
     "buen dia",
     "buenas tardes",
+    "buenas tardas",
     "buenas noches",
     "hola buenos dias",
     "hola buen dia",
     "hola buenas tardes",
+    "hola buenas tardas",
     "hola buenas noches",
     "que tal",
     "hola que tal",
@@ -2893,6 +3029,7 @@ function esSaludoOInicio(texto) {
     "buenos dias",
     "buen dia",
     "buenas tardes",
+    "buenas tardas",
     "buenas noches",
     "que tal",
   ];
@@ -2948,15 +3085,19 @@ function mensajeCursosVerano() {
 function detectarCarrera(texto) {
   const t = textoPlano(texto);
 
+  if (esSaludoSimpleExacto(t)) {
+    return null;
+  }
+
   if (
     contieneAlgunaFrase(t, [
-      "industrial",
-      "ing industrial",
       "ingenieria industrial",
       "ingeneria industrial",
       "ingeniera industrial",
+      "ing industrial",
       "ing. industrial",
-    ])
+    ]) ||
+    contienePalabraExacta(t, ["industrial"])
   ) {
     return "industrial";
   }
@@ -2964,23 +3105,20 @@ function detectarCarrera(texto) {
   if (
     contieneAlgunaFrase(t, [
       "sistemas computacionales",
-      "sistemas",
-      "sistema",
-      "ing sistemas",
-      "ing en sistemas",
-      "ing. en sistemas",
-      "ing. sistemas",
-      "ing sistemas computacionales",
       "ingenieria en sistemas",
       "ingeneria en sistemas",
       "ingeniera en sistemas",
-      "isc",
+      "ing en sistemas",
+      "ing. en sistemas",
+      "ing sistemas",
+      "ing. sistemas",
+      "ing sistemas computacionales",
       "computacionales",
       "computacion",
       "programacion",
       "software",
-      "sist",
-    ])
+    ]) ||
+    contienePalabraExacta(t, ["sistemas", "sistema", "isc", "sist"])
   ) {
     return "sistemas";
   }
@@ -3009,23 +3147,23 @@ function detectarCarrera(texto) {
       "ing bioquimica",
       "ingenieria bioquimica",
       "ingeneria bioquimica",
-      "quimica",
-    ])
+    ]) ||
+    contienePalabraExacta(t, ["quimica"])
   ) {
     return "bioquimica";
   }
 
   if (
     contieneAlgunaFrase(t, [
-      "civil",
-      "ing civil",
-      "ing. civil",
       "ingenieria civil",
       "ingeneria civil",
       "ingeniera civil",
+      "ing civil",
+      "ing. civil",
       "construccion",
       "estructuras",
-    ])
+    ]) ||
+    contienePalabraExacta(t, ["civil"])
   ) {
     return "civil";
   }
@@ -3038,28 +3176,25 @@ function detectarCarrera(texto) {
       "tecnologia informacion",
       "informacion y comunicaciones",
       "informacion y comunicacion",
-      "tics",
-      "tic",
-      "itics",
-      "itc",
       "telecomunicaciones",
       "comunicaciones",
-    ])
+    ]) ||
+    contienePalabraExacta(t, ["tics", "tic", "itics", "itc"])
   ) {
     return "tic";
   }
 
   if (
     contieneAlgunaFrase(t, [
-      "ambiental",
-      "ing ambiental",
-      "ing. ambiental",
       "ingenieria ambiental",
       "ingeneria ambiental",
+      "ing ambiental",
+      "ing. ambiental",
       "medio ambiente",
       "ambiente",
       "sustentabilidad",
-    ])
+    ]) ||
+    contienePalabraExacta(t, ["ambiental"])
   ) {
     return "ambiental";
   }
@@ -3076,24 +3211,24 @@ function detectarCarrera(texto) {
       "empresarial",
       "administracion",
       "administración",
-      "ige",
-    ])
+    ]) ||
+    contienePalabraExacta(t, ["ige"])
   ) {
     return "gestion";
   }
 
   if (
     contieneAlgunaFrase(t, [
-      "petrolera",
-      "petroleo",
-      "petróleo",
-      "ing petrolera",
-      "ing. petrolera",
       "ingenieria petrolera",
       "ingeneria petrolera",
+      "ing petrolera",
+      "ing. petrolera",
+      "petroleo",
+      "petróleo",
       "yacimientos",
       "perforacion",
-    ])
+    ]) ||
+    contienePalabraExacta(t, ["petrolera"])
   ) {
     return "petrolera";
   }
@@ -3218,6 +3353,10 @@ function mensajeCarrera(claveCarrera) {
 
 function respuestaCortaLocal(textoUsuario) {
   const texto = textoPlano(textoUsuario);
+
+  if (esSaludoSimpleExacto(texto)) {
+    return "Selecciona una opción del menú principal para continuar.";
+  }
 
   const fija = construirRespuestaFija(texto);
 
@@ -3404,6 +3543,10 @@ async function enviarLista(numeroDestino) {
 }
 
 function construirRespuestaFija(texto) {
+  if (esSaludoSimpleExacto(texto)) {
+    return null;
+  }
+
   if (
     texto === "op_btn_fichas" ||
     contieneAlgunaFrase(texto, [
@@ -3430,7 +3573,7 @@ function construirRespuestaFija(texto) {
         "📄 *Requisitos para el examen*\n" +
         "• CURP\n" +
         "• Certificado o Constancia de Bachillerato con calificaciones\n\n" +
-        '✨ Si deseas información más detallada selecciona *Especifico* en el menú.',
+        "✨ Si deseas información más detallada selecciona *Especifico* en el menú.",
       imageUrl: URL_IMAGEN_FICHAS,
       caption: "📝 Fichas de admisión",
     };
@@ -3570,7 +3713,7 @@ function construirRespuestaFija(texto) {
         "• Maestría en Sistemas Computacionales\n" +
         "• Maestría en Ciencias de la Ingeniería\n" +
         "• Doctorado en Ciencias de la Ingeniería\n\n" +
-        '✨ Puedes pedir información de una carrera escribiendo, por ejemplo: *info de ing. industrial* o *información de sistemas*.',
+        "✨ Puedes pedir información de una carrera escribiendo, por ejemplo: *info de ing. industrial* o *información de sistemas*.",
       imageUrl: URL_IMAGEN_OFERTA,
       caption: "🎓 Oferta educativa del Instituto Tecnológico Superior de Misantla",
     };
@@ -3964,6 +4107,8 @@ Nunca menciones nombres de modelos.
 Nunca menciones documentos, archivos, enlaces internos, fuentes recuperadas ni herramientas.
 Responde como asistente virtual institucional del Instituto Tecnológico Superior de Misantla.
 Tolera abreviaturas como "info", "ing", "ing.", "sist", "tec", y faltas de ortografía comunes.
+
+Si la consulta es únicamente un saludo como "hola", "buenos días", "buenas tardes" o "buenas noches", no des información de carreras; indica que seleccione una opción del menú.
 
 Si preguntan por horarios:
 Lunes a viernes: 9:00 a 14:00 y de 15:00 a 17:00 horas.
