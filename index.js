@@ -105,12 +105,16 @@ const EXTENSIONES = {
   subdireccionAcademica: "134",
 };
 
-const IA_TIEMPO_MAXIMO_MS = 9000;
-const IA_MAX_SOLICITUDES_POR_MINUTO = 6;
-const IA_PAUSA_POR_SATURACION_MS = 75 * 1000;
+const IA_TIEMPO_MAXIMO_MS = 30000;
+const IA_MAX_SOLICITUDES_POR_MINUTO = 3;
+const IA_PAUSA_POR_SATURACION_MS = 90 * 1000;
+const IA_ESPERA_ENTRE_SOLICITUDES_MS = 2500;
+const IA_MAX_REINTENTOS = 2;
 
 let iaBloqueadaHasta = 0;
 let iaSolicitudesRecientes = [];
+let iaCola = Promise.resolve();
+let iaUltimaSolicitudMs = 0;
 
 const CONTEXTO_INSTITUCIONAL = `
 INSTITUCIÓN:
@@ -291,7 +295,76 @@ function conTiempoLimite(promesa, ms) {
   ]);
 }
 
-function recortarRespuesta(texto, limite = 1100) {
+async function esperarTurnoIA() {
+  const ahora = Date.now();
+  const diferencia = ahora - iaUltimaSolicitudMs;
+
+  if (diferencia < IA_ESPERA_ENTRE_SOLICITUDES_MS) {
+    await esperar(IA_ESPERA_ENTRE_SOLICITUDES_MS - diferencia);
+  }
+
+  iaUltimaSolicitudMs = Date.now();
+}
+
+function ejecutarEnColaIA(tarea) {
+  const ejecucion = iaCola.then(tarea, tarea);
+  iaCola = ejecucion.catch(() => {});
+  return ejecucion;
+}
+
+function obtenerFinishReasonIA(response) {
+  try {
+    return (
+      response?.candidates?.[0]?.finishReason ||
+      response?.response?.candidates?.[0]?.finishReason ||
+      ""
+    );
+  } catch {
+    return "";
+  }
+}
+
+function respuestaPareceIncompleta(texto) {
+  const limpio = String(texto || "").trim();
+
+  if (!limpio) return true;
+  if (limpio.length < 25) return true;
+
+  const terminaBien =
+    limpio.endsWith(".") ||
+    limpio.endsWith("!") ||
+    limpio.endsWith("?") ||
+    limpio.endsWith(":") ||
+    limpio.endsWith(")") ||
+    limpio.endsWith("*") ||
+    limpio.endsWith("horas") ||
+    limpio.endsWith("extensión") ||
+    limpio.endsWith("ext.") ||
+    limpio.endsWith("ext");
+
+  const terminaCortada =
+    /[a-záéíóúñ]$/i.test(limpio) &&
+    !terminaBien &&
+    limpio.split(" ").length >= 5;
+
+  return terminaCortada;
+}
+
+function limpiarRespuestaIA(texto) {
+  return String(texto || "")
+    .replace(/gemini/gi, "")
+    .replace(/drive/gi, "")
+    .replace(/pdf/gi, "")
+    .replace(/url context/gi, "")
+    .replace(/source/gi, "")
+    .replace(/sources/gi, "")
+    .replace(/menu principal/gi, "")
+    .replace(/\s+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function recortarRespuesta(texto, limite = 1800) {
   const limpio = String(texto || "").trim();
 
   if (limpio.length <= limite) {
@@ -2631,7 +2704,7 @@ async function procesarMensajeEntrante(mensaje) {
   await enviarTexto(
     numeroCliente,
     "❓ *No encontré una respuesta fija para esa duda.*\n\n" +
-      'Escribe *menu* para ver el menú principal o selecciona *Especifico* para hacer una consulta más detallada.'
+      "Escribe *menu* para ver el menú principal o selecciona *Especifico* para hacer una consulta más detallada."
   );
 
   if (vieneDeLista) {
@@ -3548,6 +3621,66 @@ function construirRespuestaFija(texto) {
   }
 
   if (
+    contieneAlgunaFrase(texto, ["examen", "evaluacion", "evaluación"]) &&
+    contieneAlgunaFrase(texto, [
+      "diagnostico",
+      "diagnóstico",
+      "admision",
+      "admisión",
+      "100",
+      "por ciento",
+      "eliminatorio",
+      "obligatorio",
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje:
+        "📝 *EXAMEN DE ADMISIÓN / EVALUACIÓN DIAGNÓSTICA*\n\n" +
+        "El examen corresponde a una *evaluación diagnóstica*. Su objetivo es conocer el nivel académico del aspirante y orientar el proceso de ingreso.\n\n" +
+        "📅 *Fecha:* 3 de julio de 2026\n" +
+        "💻 *Modalidad:* en línea\n\n" +
+        "✨ Si deseas información más detallada selecciona *Especifico* en el menú.",
+    };
+  }
+
+  if (
+    contieneAlgunaFrase(texto, [
+      "tramitar mi ficha",
+      "tramitar ficha",
+      "sacar ficha",
+      "solicitar ficha",
+      "pedir ficha",
+      "obtener ficha",
+      "proceso de ficha",
+      "ficha de admision",
+      "ficha de admisión",
+    ]) &&
+    contieneAlgunaFrase(texto, [
+      "presencial",
+      "presencialmente",
+      "instalaciones",
+      "ir al instituto",
+      "ir al tec",
+      "ir personalmente",
+      "en linea",
+      "en línea",
+      "linea",
+      "línea",
+    ])
+  ) {
+    return {
+      tipo: "texto",
+      mensaje:
+        "📝 *TRÁMITE DE FICHA*\n\n" +
+        "Para tramitar la ficha *no es necesario acudir presencialmente* a las instalaciones, ya que el proceso de admisión se realiza *en línea*.\n\n" +
+        "✅ La ficha, inscripción y reinscripción son gratuitas.\n" +
+        "📄 Requisitos: CURP y Certificado o Constancia de Bachillerato con calificaciones.\n\n" +
+        "✨ Si deseas información más detallada selecciona *Especifico* en el menú.",
+    };
+  }
+
+  if (
     texto === "op_btn_fichas" ||
     contieneAlgunaFrase(texto, [
       "fichas de admision",
@@ -4096,107 +4229,168 @@ async function generarRespuestaIA(textoUsuario) {
     return respuestaCortaLocal(textoUsuario);
   }
 
-  registrarSolicitudIA();
+  return ejecutarEnColaIA(async () => {
+    await esperarTurnoIA();
+    registrarSolicitudIA();
 
-  const prompt = `
+    const textoUsuarioLimpio = String(textoUsuario || "").trim();
+
+    const promptBase = `
 Responde SOLO en español.
-Sé breve. Máximo 5 líneas.
-Nunca respondas en inglés.
-Nunca menciones que eres una IA.
-Nunca menciones nombres de modelos.
-Nunca menciones documentos, archivos, enlaces internos, fuentes recuperadas ni herramientas.
+No respondas en inglés.
+No menciones que eres una IA.
+No menciones nombres de modelos.
+No menciones documentos, archivos, enlaces internos, fuentes recuperadas ni herramientas.
 Responde como asistente virtual institucional del Instituto Tecnológico Superior de Misantla.
-Tolera abreviaturas como "info", "ing", "ing.", "sist", "tec", y faltas de ortografía comunes.
 
-Si la consulta es únicamente un saludo como "hola", "buenos días", "buenas tardes" o "buenas noches", no des información de carreras; indica que seleccione una opción del menú.
+INSTRUCCIONES IMPORTANTES:
+- Responde de forma clara, completa y útil.
+- No cortes palabras ni dejes frases incompletas.
+- Si la respuesta es breve, aun así debe terminar con una oración completa.
+- Máximo 8 líneas.
+- Usa viñetas solo si ayudan.
+- Tolera abreviaturas como "info", "ing", "ing.", "sist", "tec" y faltas de ortografía comunes.
+- Si no tienes un dato confirmado, no inventes.
+- Si la consulta es únicamente un saludo como "hola", "buenos días", "buenas tardes" o "buenas noches", no des información de carreras; indica que seleccione una opción del menú.
 
+REGLAS DE RESPUESTA:
 Si preguntan por horarios:
 Lunes a viernes: 9:00 a 14:00 y de 15:00 a 17:00 horas.
 Sábados: 9:00 a 14:00 horas.
 
-Si preguntan si una carrera está disponible sábados, aclara que el horario general sabatino es 9:00 a 14:00, pero que para confirmar clases o disponibilidad por carrera deben comunicarse con Jefes de Carrera: ${TELEFONO_BASE} ext. ${EXTENSIONES.jefesCarrera}.
+Si preguntan por el examen de admisión:
+Aclara que es una evaluación diagnóstica. No debe presentarse como un examen eliminatorio, salvo que la institución indique otra cosa oficialmente.
 
-Si preguntan por cursos de verano, clases de verano, materias de verano, cursos intersemestrales o adelantar materias en verano, responde que pueden solicitar más información en Control Escolar al teléfono ${TELEFONO_BASE}, extensiones ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}, o con Jefes de Carrera al teléfono ${TELEFONO_BASE}, extensión ${EXTENSIONES.jefesCarrera}.
+Si preguntan si deben ir presencialmente para tramitar la ficha:
+Aclara que el proceso de admisión/ficha se realiza en línea y que la ficha, inscripción y reinscripción son gratuitas.
 
-Si preguntan por una carrera específica, responde con descripción breve, áreas y contacto de Jefes de Carrera: ${TELEFONO_BASE} ext. ${EXTENSIONES.jefesCarrera}.
-Si preguntan por ubicación, incluye Google Maps.
-Si preguntan por Dirección General, responde teléfono ${TELEFONO_BASE}, extensión ${EXTENSIONES.direccion}, y correo dir_itsmisantla@itsm.edu.mx.
+Si preguntan si una carrera está disponible sábados:
+Aclara que el horario general sabatino es 9:00 a 14:00, pero que para confirmar clases o disponibilidad por carrera deben comunicarse con Jefes de Carrera: ${TELEFONO_BASE} ext. ${EXTENSIONES.jefesCarrera}.
+
+Si preguntan por cursos de verano, clases de verano, materias de verano, cursos intersemestrales o adelantar materias en verano:
+Responde que pueden solicitar más información en Control Escolar al teléfono ${TELEFONO_BASE}, extensiones ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}, o con Jefes de Carrera al teléfono ${TELEFONO_BASE}, extensión ${EXTENSIONES.jefesCarrera}.
+
+Si preguntan por una carrera específica:
+Responde con descripción breve, áreas que se trabajan y contacto de Jefes de Carrera: ${TELEFONO_BASE} ext. ${EXTENSIONES.jefesCarrera}.
+
+Si preguntan por ubicación:
+Incluye Google Maps.
+
+Si preguntan por Dirección General:
+Responde teléfono ${TELEFONO_BASE}, extensión ${EXTENSIONES.direccion}, y correo dir_itsmisantla@itsm.edu.mx.
 No confundas "número de dirección" con ubicación física.
-Si preguntan por pagos, responde que se comuniquen con Control Escolar al teléfono ${TELEFONO_BASE}, extensiones ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}.
-Si preguntan por Educación Virtual TECNM, incluye ${TELEFONO_VIRTUAL} ext. ${EXTENSIONES.subdireccionAcademica}, virtual.tecnm.mx y sus carreras.
-Si preguntan por RegresaTec, incluye Subdirección Académica ${TELEFONO_VIRTUAL} ext. ${EXTENSIONES.subdireccionAcademica} y Estudios Profesionales ${TELEFONO_BASE} ext. ${EXTENSIONES.divisionEstudios}.
-No inventes datos.
+
+Si preguntan por pagos:
+Responde que se comuniquen con Control Escolar al teléfono ${TELEFONO_BASE}, extensiones ${EXTENSIONES.controlEscolar1} o ${EXTENSIONES.controlEscolar2}.
+
+Si preguntan por Educación Virtual TECNM:
+Incluye ${TELEFONO_VIRTUAL} ext. ${EXTENSIONES.subdireccionAcademica}, virtual.tecnm.mx y sus carreras.
+
+Si preguntan por RegresaTec:
+Incluye Subdirección Académica ${TELEFONO_VIRTUAL} ext. ${EXTENSIONES.subdireccionAcademica} y Estudios Profesionales ${TELEFONO_BASE} ext. ${EXTENSIONES.divisionEstudios}.
 
 DATOS CONFIRMADOS:
 ${CONTEXTO_INSTITUCIONAL}
 
-CONSULTA:
-${textoUsuario}
+CONSULTA DEL USUARIO:
+${textoUsuarioLimpio}
 `;
 
-  try {
-    const response = await conTiempoLimite(
-      ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [prompt],
-        config: {
-          temperature: 0.1,
-          maxOutputTokens: 220,
-        },
-      }),
-      IA_TIEMPO_MAXIMO_MS
-    );
+    let ultimaRespuesta = "";
 
-    let texto = response.text?.trim();
+    for (let intento = 1; intento <= IA_MAX_REINTENTOS; intento++) {
+      try {
+        const prompt =
+          intento === 1
+            ? promptBase
+            : `
+La respuesta anterior quedó incompleta o fue cortada.
+Responde nuevamente desde cero, en español, de forma breve pero completa.
+No cortes palabras.
+Termina con una oración completa.
 
-    if (!texto) {
-      return respuestaCortaLocal(textoUsuario);
+${promptBase}
+`;
+
+        const response = await conTiempoLimite(
+          ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: [prompt],
+            config: {
+              temperature: 0.1,
+              maxOutputTokens: intento === 1 ? 700 : 900,
+            },
+          }),
+          IA_TIEMPO_MAXIMO_MS
+        );
+
+        let texto = limpiarRespuestaIA(response.text || "");
+        const finishReason = obtenerFinishReasonIA(response);
+
+        ultimaRespuesta = texto;
+
+        const frasesIngles = [
+          "the website",
+          "therefore",
+          "however",
+          "the address",
+          "i will",
+          "i do not have",
+          "source",
+          "retrieved",
+          "mentions",
+          "highly probable",
+        ];
+
+        const pareceIngles = frasesIngles.some((frase) =>
+          texto.toLowerCase().includes(frase)
+        );
+
+        if (pareceIngles) {
+          return respuestaCortaLocal(textoUsuarioLimpio);
+        }
+
+        const fueCortadaPorTokens =
+          String(finishReason || "").toUpperCase() === "MAX_TOKENS";
+
+        if (!texto || fueCortadaPorTokens || respuestaPareceIncompleta(texto)) {
+          if (intento < IA_MAX_REINTENTOS) {
+            await esperar(1800);
+            continue;
+          }
+
+          return respuestaCortaLocal(textoUsuarioLimpio);
+        }
+
+        return recortarRespuesta(texto, 1800);
+      } catch (error) {
+        console.error("===== ERROR MODO ESPECÍFICO / IA =====");
+        console.error("Intento:", intento);
+        console.error("Mensaje:", error?.message);
+        console.error("Objeto completo:", error);
+        console.error("=====================================");
+
+        if (errorPorLimiteIA(error)) {
+          bloquearIAtemporalmente();
+
+          if (intento < IA_MAX_REINTENTOS) {
+            await esperar(2500);
+            continue;
+          }
+        }
+
+        if (intento >= IA_MAX_REINTENTOS) {
+          return respuestaCortaLocal(textoUsuarioLimpio);
+        }
+      }
     }
 
-    texto = texto
-      .replace(/gemini/gi, "")
-      .replace(/drive/gi, "")
-      .replace(/pdf/gi, "")
-      .replace(/url context/gi, "")
-      .replace(/source/gi, "")
-      .replace(/sources/gi, "")
-      .replace(/menu principal/gi, "")
-      .trim();
-
-    const frasesIngles = [
-      "the website",
-      "therefore",
-      "however",
-      "the address",
-      "i will",
-      "i do not have",
-      "source",
-      "retrieved",
-      "mentions",
-      "highly probable",
-    ];
-
-    const pareceIngles = frasesIngles.some((frase) =>
-      texto.toLowerCase().includes(frase)
-    );
-
-    if (pareceIngles) {
-      return respuestaCortaLocal(textoUsuario);
+    if (ultimaRespuesta && !respuestaPareceIncompleta(ultimaRespuesta)) {
+      return recortarRespuesta(ultimaRespuesta, 1800);
     }
 
-    return recortarRespuesta(texto, 1100);
-  } catch (error) {
-    console.error("===== ERROR MODO ESPECÍFICO / IA =====");
-    console.error("Mensaje:", error?.message);
-    console.error("Objeto completo:", error);
-    console.error("=====================================");
-
-    if (errorPorLimiteIA(error)) {
-      bloquearIAtemporalmente();
-    }
-
-    return respuestaCortaLocal(textoUsuario);
-  }
+    return respuestaCortaLocal(textoUsuarioLimpio);
+  });
 }
 
 async function subirMediaWhatsApp(archivo) {
