@@ -173,10 +173,11 @@ POSGRADOS:
 - Doctorado en Ciencias de la Ingeniería
 
 ADMISIÓN:
+Aún se cuenta con fichas disponibles.
 El proceso de admisión es gratuito.
 La ficha, inscripción y reinscripción son gratuitas.
-Examen de admisión / evaluación diagnóstica: 3 de julio de 2026.
-Publicación de resultados: 8 de julio de 2026.
+3er examen de diagnóstico: 7 de agosto de 2026.
+Modalidad del examen: en línea.
 
 REQUISITOS PARA EXAMEN / ADMISIÓN:
 - CURP
@@ -3636,9 +3637,10 @@ function construirRespuestaFija(texto) {
     return {
       tipo: "texto",
       mensaje:
-        "📝 *EXAMEN DE ADMISIÓN / EVALUACIÓN DIAGNÓSTICA*\n\n" +
-        "El examen corresponde a una *evaluación diagnóstica*. Su objetivo es conocer el nivel académico del aspirante y orientar el proceso de ingreso.\n\n" +
-        "📅 *Fecha:* 3 de julio de 2026\n" +
+        "📝 *3ER EXAMEN DE DIAGNÓSTICO*\n\n" +
+        "✅ Aún se cuenta con *fichas disponibles*.\n\n" +
+        "El *3er examen de diagnóstico* tiene como objetivo conocer el nivel académico del aspirante y orientar el proceso de ingreso.\n\n" +
+        "📅 *Fecha:* 7 de agosto de 2026\n" +
         "💻 *Modalidad:* en línea\n\n" +
         "✨ Si deseas información más detallada selecciona *Especifico* en el menú.",
     };
@@ -3674,6 +3676,7 @@ function construirRespuestaFija(texto) {
       mensaje:
         "📝 *TRÁMITE DE FICHA*\n\n" +
         "Para tramitar la ficha *no es necesario acudir presencialmente* a las instalaciones, ya que el proceso de admisión se realiza *en línea*.\n\n" +
+        "✅ Aún se cuenta con *fichas disponibles*.\n" +
         "✅ La ficha, inscripción y reinscripción son gratuitas.\n" +
         "📄 Requisitos: CURP y Certificado o Constancia de Bachillerato con calificaciones.\n\n" +
         "✨ Si deseas información más detallada selecciona *Especifico* en el menú.",
@@ -3696,13 +3699,12 @@ function construirRespuestaFija(texto) {
       tipo: "texto_e_imagen",
       mensaje:
         "📝 *FICHAS DE ADMISIÓN*\n\n" +
+        "✅ *Aún se cuenta con fichas disponibles.*\n" +
         "✅ *El proceso de admisión es gratuito.*\n" +
         "La ficha, inscripción y reinscripción son gratuitas.\n\n" +
-        "📅 *Examen de admisión / evaluación diagnóstica*\n" +
-        "• 3 de julio de 2026\n" +
+        "📅 *3er examen de diagnóstico*\n" +
+        "• 7 de agosto de 2026\n" +
         "• Se realiza en línea\n\n" +
-        "📢 *Publicación de resultados*\n" +
-        "• 8 de julio de 2026\n\n" +
         "📄 *Requisitos para el examen*\n" +
         "• CURP\n" +
         "• Certificado o Constancia de Bachillerato con calificaciones\n\n" +
@@ -4258,11 +4260,11 @@ Si preguntan por horarios:
 Lunes a viernes: 9:00 a 14:00 y de 15:00 a 17:00 horas.
 Sábados: 9:00 a 14:00 horas.
 
-Si preguntan por el examen de admisión:
-Aclara que es una evaluación diagnóstica. No debe presentarse como un examen eliminatorio, salvo que la institución indique otra cosa oficialmente.
+Si preguntan por el examen de admisión o diagnóstico:
+Aclara que corresponde al *3er examen de diagnóstico*, que se realizará el 7 de agosto de 2026 en modalidad en línea. No debe presentarse como un examen eliminatorio, salvo que la institución indique otra cosa oficialmente.
 
-Si preguntan si deben ir presencialmente para tramitar la ficha:
-Aclara que el proceso de admisión/ficha se realiza en línea y que la ficha, inscripción y reinscripción son gratuitas.
+Si preguntan por fichas o si deben ir presencialmente para tramitar la ficha:
+Aclara que aún se cuenta con fichas disponibles, que el proceso de admisión/ficha se realiza en línea y que la ficha, inscripción y reinscripción son gratuitas.
 
 Si preguntan si una carrera está disponible sábados:
 Aclara que el horario general sabatino es 9:00 a 14:00, pero que para confirmar clases o disponibilidad por carrera deben comunicarse con Jefes de Carrera: ${TELEFONO_BASE} ext. ${EXTENSIONES.jefesCarrera}.
