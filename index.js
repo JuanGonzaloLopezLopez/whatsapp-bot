@@ -177,7 +177,7 @@ Aún se cuenta con fichas disponibles.
 El proceso de admisión es gratuito.
 La ficha, inscripción y reinscripción son gratuitas.
 3er examen de diagnóstico: 7 de agosto de 2026.
-Modalidad del examen: en línea.
+Modalidad del examen: Presencial.
 
 REQUISITOS PARA EXAMEN / ADMISIÓN:
 - CURP
@@ -3641,7 +3641,7 @@ function construirRespuestaFija(texto) {
         "✅ Aún se cuenta con *fichas disponibles*.\n\n" +
         "El *3er examen de diagnóstico* tiene como objetivo conocer el nivel académico del aspirante y orientar el proceso de ingreso.\n\n" +
         "📅 *Fecha:* 7 de agosto de 2026\n" +
-        "💻 *Modalidad:* en línea\n\n" +
+        "💻 *Modalidad:* Presencial\n\n" +
         "✨ Si deseas información más detallada selecciona *Especifico* en el menú.",
     };
   }
@@ -3675,7 +3675,7 @@ function construirRespuestaFija(texto) {
       tipo: "texto",
       mensaje:
         "📝 *TRÁMITE DE FICHA*\n\n" +
-        "Para tramitar la ficha *no es necesario acudir presencialmente* a las instalaciones, ya que el proceso de admisión se realiza *en línea*.\n\n" +
+        "Para tramitar la ficha *es necesario acudir presencialmente* a las instalaciones.\n\n" +
         "✅ Aún se cuenta con *fichas disponibles*.\n" +
         "✅ La ficha, inscripción y reinscripción son gratuitas.\n" +
         "📄 Requisitos: CURP y Certificado o Constancia de Bachillerato con calificaciones.\n\n" +
@@ -3704,7 +3704,7 @@ function construirRespuestaFija(texto) {
         "La ficha, inscripción y reinscripción son gratuitas.\n\n" +
         "📅 *3er examen de diagnóstico*\n" +
         "• 7 de agosto de 2026\n" +
-        "• Se realiza en línea\n\n" +
+        "• Se realiza de manera presencial\n\n" +
         "📄 *Requisitos para el examen*\n" +
         "• CURP\n" +
         "• Certificado o Constancia de Bachillerato con calificaciones\n\n" +
